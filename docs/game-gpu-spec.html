@@ -1,0 +1,54 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ゲーム用 FPGA GPU 仕様案 v0.1 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>ゲーム用 FPGA GPU 仕様案 v0.1</h1>
+<p>状態: PC の整数参照を実装した設計案。RTL、配置配線、DDR コントローラ接続、実機性能は未検証。Tab5/USB は使用しない。CNN アクセラレータとは別ビットストリームとし、共通通信・バッファ登録・DDR 仲裁・フェンス・測定機構を再利用する。ここでの命令名は意味契約であり、ワイヤ opcode 番号やパケット配置は共通プロトコル仕様を正とする。</p>
+<h2>目的と段階</h2>
+<p>ポリゴンゲームの同一シーンを CPU と FPGA で描き、絵の正しさ、描画時間、転送を含むフレーム時間、表示 FPS を比較する。演算スループットだけからゲームの高速化を主張しない。</p>
+<div class="table-scroll"><table><thead><tr><th>段階</th><th>FPGA の担当</th><th>Tab5 の担当</th><th>判定できること</th></tr></thead><tbody>
+<tr><td>G0</td><td>clear、画面座標の線、単色三角形、Z</td><td>ゲーム・変換・投影・near clip・画面表示</td><td>ラスタライザの部分オフロード</td></tr>
+<tr><td>G1</td><td>画像転送、スプライト、矩形 scissor、色キー、整数 alpha</td><td>ゲーム・素材管理</td><td>2D ゲームと合成</td></tr>
+<tr><td>G2</td><td>頂点行列変換、同次クリップ、投影</td><td>ゲーム・行列・描画リスト</td><td>幾何処理も含む 3D GPU</td></tr>
+<tr><td>G3</td><td>UV 補間、最近傍テクスチャ、透視補正、合成</td><td>ゲーム・素材管理</td><td>テクスチャ付きポリゴンゲーム</td></tr>
+</tbody></table></div>
+<p>最初のゲームは固定 seed の低ポリゴン障害物コース。CPU と FPGA に同じ simulation tick、カメラ、メッシュ、材質、描画順を渡す。入力や壁時計で比較対象を変えない。G0 の結果には「CPU geometry + FPGA raster」の表示を必須とする。Galaxy/Fire/Flow/YOLO が game GPU で利用可能とは報告しない。</p>
+<h2>ホスト命令と内部オペレーター</h2>
+<p>ホスト命令はバッファハンドルと検証済み範囲を参照する。生 DDR アドレスをゲームから渡さない。</p>
+<div class="table-scroll"><table><thead><tr><th>意味命令</th><th>入力/作用</th><th>初期 capability</th></tr></thead><tbody>
+<tr><td>QUERY_CAPS</td><td>ビットストリーム種類、ABI、寸法、命令・形式 bitset、時計/性能 counter</td><td>必須</td></tr>
+<tr><td>SET_TARGET</td><td>color/depth バッファ、幅、高さ、stride</td><td>G0</td></tr>
+<tr><td>CLEAR</td><td>color RGB565、depth uint16</td><td>G0</td></tr>
+<tr><td>SET_SCISSOR</td><td>半開区間 [x0,x1) × [y0,y1)</td><td>G0</td></tr>
+<tr><td>DRAW_LINES_SCREEN</td><td>頂点対、RGB565。整数 Bresenham、両端含む、Z 無効</td><td>G0</td></tr>
+<tr><td>DRAW_TRIANGLES_SCREEN</td><td>頂点 triplet、単色 RGB565、Z test/write</td><td>G0</td></tr>
+<tr><td>UPLOAD_IMAGE / DRAW_SPRITES</td><td>RGB565 素材、src/dst 矩形、色キー、alpha</td><td>G1</td></tr>
+<tr><td>SET_TRANSFORM / DRAW_INDEXED</td><td>行列、モデル頂点、index、材質</td><td>G2</td></tr>
+<tr><td>DRAW_TEXTURED</td><td>UV、texture、filter/合成状態</td><td>G3</td></tr>
+<tr><td>FENCE / READBACK</td><td>完了を順序保証、完了済み color 範囲を返す</td><td>共通基盤</td></tr>
+</tbody></table></div>
+<p>内部オペレーターはホストに公開する汎用 ISA ではない。G0 は edge setup、edge step、top-left test、重心 Z 補間、unsigned depth compare、color/depth write。G2 は dot4/MAC、6面 clip、reciprocal、viewport。G3 は UV over W 補間、reciprocal、texture fetch、RGB blend。内部構成やパイプライン段数は変更してよいが、出力契約は維持する。</p>
+<h2>G0 の数値・画素契約</h2>
+<ul>
+<li>Python 参照の寸法、Vertex の X/Y/Z、color、scissor 各要素は組込み <code>int</code> のみ受理する。<code>bool</code>、float（整数値でも不可）、文字列、その他型は <code>ValueError</code>。頂点は Vertex、scissor は4要素の tuple/list または省略を示す None のみ。寸法は構築時、描画パラメータは全要素を描画前に検証し、拒否時は color/depth を変更しない。Vertex の型注釈だけに依存せず draw 時に検査する。</li>
+<li>color: RGB565 little endian。R=bits15:11/G=10:5/B=4:0。画面原点は左上、X 右向き、Y 下向き。</li>
+<li>画面頂点 X/Y: signed 16-bit raw、4 fractional bits。範囲 -2048 ～ 2047.9375 px。各画素の評価点は (x+0.5,y+0.5)。範囲外パラメータは wrap/saturate せず拒否。</li>
+<li>画面座標 edge は <code>E(a,b,p)=(bx-ax)(py-ay)-(by-ay)(px-ax)</code>。area&lt;0 は b/c を交換。area=0 は何も描かない。back-face culling は G0 では無効。</li>
+<li>正規化後 E&gt;0 を内部とする。E=0 は辺 dy&lt;0 または dy=0 かつ dx&gt;0 のみ含む（Y 下向きの top-left）。共有辺を二重に描かない。</li>
+<li>scissor と target を交差させた範囲だけを走査。画面外頂点を clamp しない。元の辺で計算するので画面境界でも深度補間は変わらない。G0 の画面クリップは near-plane clip を代替しない。</li>
+<li>Z: unsigned 16-bit reciprocal-depth encoding、0 を far/背景、65535 を near とする。ホストは同じ投影定義から生成する。比較は厳密 <code>new &gt; old</code>、等値は先に描いた面が残る。clear depth=0。</li>
+<li>深度補間は <code>floor((wa*za+wb*zb+wc*zc)/area)</code>。画素中心で計算。covered sample の重みは非負なので有効範囲から逸脱しない。</li>
+<li>edge/area は signed 34-bit 以上、重み×Z と総和は signed 51-bit 以上、参照/初期 RTL は signed 64-bit を使用する。最悪座標差65535に基づく。深度除算の近似は v0.1 適合では認めず、後続の明示した精度モードとする。</li>
+<li>線は X/Y を数学的 floor で整数化して Bresenham。線の契約は三角形の共有辺規則と別。ラインの深度は更新しない。</li>
+</ul>
+<p>640×360 color/depth 各 460,800 bytes。double color + depth で 1,382,400 bytes。全 framebuffer は DDR、BRAM は command FIFO・小さい line/tile cache 用。最大 stride は capability で通知し、rowbytes&lt;=stride、stride は 2-byte alignment。最後のアクセス <code>offset+(height-1)*stride+width*2</code> が登録領域内にあることをオーバーフローしない拡張整数で検証する。color/depth の重複領域は禁止。描画中の CPU 書込みは禁止、ownership は fence 完了で返す。</p>
+<h2>エラーと未対応機能</h2>
+<p>長さ・opcode・buffer generation・alignment・範囲・format・capability を命令実行前に検査する。不正な単独 draw は一画素も書かずその command を拒否する。先に完了した command は rollback しない。error は sequence、code、command index を返し、batch fence は失敗状態で完了する。DDR fault/timeout はフレーム無効、reset/reinit 後まで新規描画を停止する。未対応命令で黙って CPU に切り替えない。CPU fallback は UI と CSV に表示し比較勝率から除外する。</p>
+<p>G1 の alpha は 0..255、各 RGB565 component を整数のまま <code>(src*a+dst*(255-a)+127)//255</code>。色キーは blend 前に skip。スプライト拡大は最近傍、回転と負寸法は未対応。G2 のモデル/行列は signed Q16.16 案、MAC は64-bit、丸め・clip intersection・reciprocal は G2 着手前に追加仕様/参照で凍結する。G3 の透視補正を含め未規定部分を capability として公開してはならない。</p>
+<h2>実装資源と性能評価</h2>
+<p>Tang Primer 20K の想定資源規模は約20k LUT、18×18乗算器48、BRAM 828Kbit、DDR3 128MiB。型番/利用可能資源は合成対象デバイスで再確認する。最初は単一 raster engine・単一 fragment lane、DDR burst と小さい cache から始める。クロック、lane 数、fill rate、DDR 実効帯域は未確定。バッファ read-modify-write に必要な帯域と command/readback の実測を優先する。</p>
+<p>counter は accepted triangles、degenerate、tested/covered/depth-passed fragments、DDR read/write bytes、busy/stall cycles、command bytes を少なくとも定義する。全15条件という旧値を固定せず、現在 lab.hpp の8 scenes×3 loadsのうち対応 scene/load のみ比較する。</p>
+<p>既存 <code>main/lab.cpp</code> の CPU は float edge、境界全部包含、float reciprocal depth×50000、strict greater を採用し、top-left を満たさない。その画像と固定小数点 G0 の pixel checksum が一致するとは限らない。検証を分ける:</p>
+<ul>
+<li><strong>適合性:</strong> 同じ量子化済み画面命令を整数 CPU golden と RTL simulation に渡し、color/depth を完全一致。</li>
+<li><strong>既存実装比較:</strong> 現行 float CPU の性能は legacy baseline と表示。差分画像/差分率を併記し、完全一致を主張しない。</li>
+<li><strong>公正な速度比較:</strong> 同じ整数規則を C++ CPU backend に移植し、同じ頂点/描画順/targetで比較。元のfloat baselineも残す。</li>
+<li><strong>利用者体験:</strong> geometry、submit、GPU busy、readback、LCD transfer、end-to-end frame を別々に記録。現行 Backend::render 契約どおり submit/wait/readback をFPGA render時間に含める。24 frame warmup/120 frame sample と frame seed を記録し、平均/p95/表示FPSを報告する。</li>
+</ul>
+<p>PC の <code>reference/game_gpu_reference.py</code> は G0 三角形の golden。<code>python -m unittest discover -s tests -p test_game_gpu_reference.py</code> で共有対角線・巻き順・厳密深度・scissor・座標最大値・不正入力無変更・退化三角形を確認できる。これだけでゲーム/RTL/転送/実機の動作確認にはならない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

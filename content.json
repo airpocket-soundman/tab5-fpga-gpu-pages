@@ -1,0 +1,65 @@
+{
+  "updated": "2026-10-22",
+  "overview": "Tab5とTang Primer 20Kを使い、ポリゴンゲームの描画とWholeBody検出の推論を高速化する。ゲームGPUとCNNアクセラレータは別ビットストリームとし、通信・メモリ管理・測定基盤を共通化。同じ条件のCPU/FPGA比較で、正しさとアプリ全体の効果を検証する。",
+  "tracks": [
+    {
+      "id": "game",
+      "title": "ポリゴンゲーム GPU",
+      "summary": "640×360 RGB565で、同じゲーム・入力リプレイのCPU/FPGA比較を目指す。最初はCPUの幾何処理とFPGAのラスタライズを組み合わせる設計案。",
+      "features": ["線・単色三角形・Z判定・scissorの数値契約", "整数CPU参照による画素単位の適合性検証", "スプライト、頂点変換、クリップ、テクスチャへ段階拡張", "描画・転送・表示・ゲーム全体の時間を分離"],
+      "limitations": ["GPU RTL・合成・DDR接続・実機性能は未検証", "既存float CPU描画と整数GPU参照は規則が異なり、画像の完全一致は未保証", "銀河・炎・流れ・YOLOの対応をゲームGPUの機能として主張しない"]
+    },
+    {
+      "id": "compute",
+      "title": "WholeBody 推論アクセラレータ",
+      "summary": "PINTO WholeBody25のYOLOv9 Nを候補に、INT8演算器とモデル全体の実行計画を設計する。N/T/S、入力解像度、量子化を別軸で選定し、検出品質が足りなければ上位サイズを検討する。",
+      "features": ["INT8積・INT32累積、channel別scale、丸め・飽和・overflow拒否の仕様", "tiled GEMM・Conv2D・再量子化のCPU参照とテスト", "重みとfeature mapのDDR常駐、未対応演算とCPU fallback境界を明示", "前後処理と転送を含むFPS・latency・検出品質で評価"],
+      "limitations": ["配布モデルはFP32で、INT8量子化・精度評価は未実施", "モデル全体のFPGA実行、資源使用量、速度は未検証", "WholeBody25は25 classのbox検出で、人体キーポイント出力ではない", "初期対象は推論のみ。学習・逆伝播は対象外"]
+    }
+  ],
+  "milestones": [
+    {"id": "B0", "title": "CPU評価ファームとUSB API", "status": "done", "detail": "GPU LABの8シーンLIGHTと流れ3負荷を実機評価済み。USB応答・画像checksum・LVGL画像を検証。全24条件や反復測定は未完了。根拠: docs/validation-2026-10-22.md"},
+    {"id": "M0", "title": "用途別仕様と評価条件", "status": "in_progress", "detail": "ゲーム用・推論用v0.1設計案、共通契約、評価方針を作成。詳細ABIと未規定機能の凍結はこれから。根拠: docs/accelerator-roadmap.md"},
+    {"id": "M1", "title": "モデル監査とCPU参照演算", "status": "in_progress", "detail": "実ONNXの演算子・形状・Conv MACを監査。整数三角形とINT8 GEMM/Convの参照・境界値テストを追加済み。RTLとの照合や実モデル量子化は未実施。根拠: docs/model-audit/ と reference/"},
+    {"id": "M2", "title": "接続試験ファームの準備", "status": "in_progress", "detail": "Tab5接続試験ファームはホストビルド成功。疎通RTLとテストベンチ作成済み。シミュレータ不足と導入ポリシーによりRTL simulation未実行。実基板top・確定CST・bitstream未完了。根拠: bringup/build-manifest.json"},
+    {"id": "M3", "title": "基板の初回接続", "status": "blocked", "detail": "基板到着、FPGAピン・電圧・GPIO競合の確定、Tab5利用再開が必要。現在はユーザー指示によりUSB操作を停止。"},
+    {"id": "M4", "title": "DDR3と高速転送", "status": "planned", "detail": "初回疎通後にメモリ試験、DMA、領域越境拒否、実効帯域と遅延を評価する。"},
+    {"id": "G1", "title": "線と画面座標ポリゴン", "status": "planned", "detail": "ラスタライズのCPU参照あり。次はRTL実装と画素一致検証、DDRへの接続。GPU実装済みではない。"},
+    {"id": "G2", "title": "ゲーム向け3D機能", "status": "planned", "detail": "スプライト・頂点変換・クリップ・テクスチャを段階導入し、対応capabilityを公開する。"},
+    {"id": "G3", "title": "ポリゴンゲーム比較", "status": "planned", "detail": "固定入力リプレイの同じゲームでCPU/GPUのFPS・p95・最大負荷を比較する。"},
+    {"id": "C1", "title": "INT8演算器", "status": "planned", "detail": "CPU参照は作成済み。RTLのGEMM/Conv/requantと合成、overflow検証は未実施。"},
+    {"id": "C2", "title": "WholeBody実行計画", "status": "in_progress", "detail": "Nの実ONNX監査と演算子の分担案を作成。モデル選定、量子化、全演算対応、メモリ配置・融合はこれから。"},
+    {"id": "C3", "title": "P4基準と検出精度", "status": "planned", "detail": "同じモデルをP4 CPUで動かし、検出品質・時間・メモリを記録する。Tab5利用再開に依存。"},
+    {"id": "C4", "title": "FPGA推論比較", "status": "planned", "detail": "CPU/FPGAで同じ入力を評価し、前後処理・転送を含むFPSと品質を比較する。"},
+    {"id": "E1", "title": "評価結果の公開", "status": "in_progress", "detail": "既存CPU実測JSON/CSVと仕様資料を保存済み。FPGAの描画・推論高速化結果はまだない。"}
+  ],
+  "facts": [
+    {"label": "評価環境", "value": "Tab5 / ESP32-P4 400MHz / 640×360 RGB565", "note": "既存CPU実測。24 frame warmup + 120 frame sample、各条件は単一実行。"},
+    {"label": "WholeBody N入力", "value": "FP32 1×3×128×160", "note": "実ONNX静的解析。INT8化済みではない。"},
+    {"label": "WholeBody N出力", "value": "FP32 1×29×420", "note": "25 classのbox検出。キーポイント推定ではない。"},
+    {"label": "Conv演算量", "value": "61,063,640 MAC / 186 Conv", "note": "N 128×160の静的解析。非Conv演算を除き、速度の実測ではない。"},
+    {"label": "モデルの初期化テンソル合計", "value": "2,419,064 bytes", "note": "ONNX initializer合計（定数を含む）。学習パラメータ数や実行時ピークメモリではない。"},
+    {"label": "FPGA比較結果", "value": "未測定", "note": "描画・推論とも高速化はまだ実証していない。"}
+  ],
+  "benchmarks": [
+    {"scene": "ワイヤーフレーム / LIGHT", "fps": 29.140543383712487},
+    {"scene": "Zバッファ付きポリゴン / LIGHT", "fps": 15.434041914484853},
+    {"scene": "Mandelbrot / LIGHT", "fps": 4.576290771413894},
+    {"scene": "Julia / LIGHT", "fps": 4.42516726855702},
+    {"scene": "パーティクル / LIGHT", "fps": 31.619161949922105},
+    {"scene": "銀河 / LIGHT", "fps": 30.702857489360813},
+    {"scene": "炎 / LIGHT", "fps": 2.442906973797074},
+    {"scene": "流れ・円柱後流 / LIGHT・512粒子", "fps": 15.225717454838616},
+    {"scene": "流れ・円柱後流 / MEDIUM・2,048粒子", "fps": 14.511309873059897},
+    {"scene": "流れ・円柱後流 / HEAVY・8,192粒子", "fps": 11.054905107458291}
+  ],
+  "constraints": [
+    "ユーザーの再開指示までTab5への書き込み、USB/COM操作・読取りを行わない。PC参照、モデル解析、RTL simulation、ビルドを進める。",
+    "CPU FPSは2026-10-22保存のresults.jsonのframe_fps。描画からソフトウェア表示処理までの値で、LCDの物理走査FPSではない。",
+    "CPU測定は8シーンLIGHTと流れ3負荷。全24条件の実機一括測定や反復ばらつき評価ではない。",
+    "LVGLの取得画像は内部生成画像。液晶の実写ではなく、バックライト・実パネル表示・ティアリングを確認できない。Tab5全体のエミュレータは使用していない。",
+    "キャリアのFPGAピン、I/O電圧、GPIO競合、電源条件は未確定。推測配線で出力せず、未検証プロファイルのCST生成を拒否する。",
+    "ゲームと推論はFPGA再構成で切替。初期は同時実行せず、再構成後のVRAM・モデル保持も保証しない。",
+    "単一Convの高速化やPC上の速度を、Tab5でのYOLO全体の高速化結果として扱わない。"
+  ]
+}

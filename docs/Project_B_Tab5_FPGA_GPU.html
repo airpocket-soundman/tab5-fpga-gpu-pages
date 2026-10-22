@@ -1,0 +1,93 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Project B — Tab5外付け自作GPU（Tang Primer 20K） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>Project B — Tab5外付け自作GPU（Tang Primer 20K）</h1>
+<p>更新日：2026-10-22</p>
+<p>状態：CPU評価ファーム初期実装／FPGA機能は実装計画</p>
+<p>CPU描画の評価ツール「GPU LAB」を追加。8シーン×3負荷のアニメーション、タッチUI、</p>
+<p>測定・比較グラフ・CSV出力については<a href="benchmark-firmware.html">評価ファーム</a>を参照。</p>
+<p>FPGA描画・PARLIO通信は未実施。初版の実機起動・描画は確認済み。</p>
+<p>現在の用途別設計・実装順序は<a href="accelerator-roadmap.html">開発計画</a>を正とします。ゲームGPUとCNN推論を別ビットストリームとして開発し、初期GPUはCPUで頂点処理、FPGAで画面座標三角形とZ処理を行います。以下の頂点変換・投影は後段の目標です。</p>
+<h2>目的</h2>
+<p>Tab5内蔵LCDに、ESP32-P4単体のソフトウェア描画より複雑なワイヤーフレーム／ポリゴン3Dを高速表示する。Tang Primer 20Kを<strong>外付けGPUカートリッジ</strong>として使い、同一シーンのCPU描画とGPU描画を比較する。ファミコン／スーパーファミコンの拡張チップのように、装着による性能向上を視覚的に示す。</p>
+<h2>共通ハードウェア</h2>
+<p><a href="ESP32P4_FPGA_共通ハード仕様.html">ESP32-P4 × Tang Primer 20K 共通ハードウェア仕様</a> を使用する。初期接続は8bit PARLIO、後に16bit化を検討。<strong>GPU用途にはLinuxは必須でなく、まずESP-IDFで実装</strong>する。</p>
+<h2>役割分担</h2>
+<div class="table-scroll"><table><thead><tr><th>機器</th><th>主な仕事</th></tr></thead><tbody>
+<tr><td>Tab5 / ESP32-P4</td><td>ユーザー操作、シーン・カメラ制御、描画コマンド、PARLIO受信、ダブルバッファ、MIPI-DSI LCD表示</td></tr>
+<tr><td>Tang Primer 20K FPGA</td><td>頂点変換、透視投影、ライン描画、三角形ラスタライズ、将来のZバッファ・簡易シェーディング</td></tr>
+<tr><td>FPGA側128MB DDR3</td><td>3Dモデル、必要なテクスチャ、描画用フレームバッファ、Zバッファ</td></tr>
+</tbody></table></div>
+<h2>データフロー</h2>
+<pre><code>
+Tab5 / ESP-IDF
+
+  ├─ 入力・カメラ位置・モデル管理
+
+  └─ 描画コマンド → 8bit PARLIO → Tang Primer 20K
+
+                                     ├─ 3D演算・ラスタライズ
+
+                                     └─ DDR3 VRAM（128MB）
+
+             完成フレーム ← PARLIO ←──┘
+
+             ↓
+
+       P4 PSRAMの裏バッファへ受信
+
+             ↓ 完成通知・表示同期でバッファ切替
+
+       MIPI-DSI → Tab5 LCD（1280×720）
+
+</code></pre>
+<h2>描画・転送の基本目標</h2>
+<ul>
+<li>最初は640×360、RGB565、30FPSを目標とする。</li>
+<li>60FPSは<strong>条件付きのストレッチ目標</strong>。実効転送帯域とP4側での拡大・表示速度を測定して判断。</li>
+<li>8bit×40MHzの理論帯域は40MB/s。</li>
+<li>640×360 RGB565の全フレーム転送量は460,800byte：30FPSで13.8MB/s、60FPSで27.6MB/s。</li>
+<li>1280×720 RGB565全フレームは1,843,200byte：30FPSで55.3MB/sとなり、8bit理論帯域を超える。</li>
+<li>ダブルバッファと表示同期でティアリングを抑制する。実現可否はLCDドライバ実装に依存する。</li>
+<li>将来は圧縮・差分転送、16bit PARLIO等を検討する。</li>
+</ul>
+<h2>FPGA GPU機能（段階導入）</h2>
+<ul>
+<li>READ／WRITE／COPY／FILL、DDR3フレームバッファ</li>
+<li>画面クリア、2Dライン描画、矩形描画</li>
+<li>固定小数点の3D座標変換・透視投影・ワイヤーフレーム</li>
+<li>三角形塗りつぶし、Zバッファ、フラットシェーディング</li>
+<li>必要に応じてテクスチャマッピング、パーティクル、追加演算</li>
+</ul>
+<h2>演出・ベンチマーク</h2>
+<p>同じ回転キューブのシーンをP4単体（CPU Mode）とFPGA（GPU Mode）で描画し、オブジェクト数を増加させる。</p>
+<ul>
+<li>30FPSまたは60FPSを維持できる最大オブジェクト数</li>
+<li>頂点数／線分数／三角形数</li>
+<li>内部レンダリングFPSとLCD表示FPSを別々に測定</li>
+<li>P4 CPU負荷、FPGA転送帯域、各処理時間</li>
+<li>画面を埋める面積の違いによるラスタライズ負荷も比較</li>
+</ul>
+<p><strong>注意：</strong>外付けFPGAの方が必ず高速になるとは断定しない。同一解像度、同一シーン、同一描画機能で実測比較する。</p>
+<h2>開発フェーズと完了条件</h2>
+<div class="table-scroll"><table><thead><tr><th>段階</th><th>内容</th><th>完了条件</th></tr></thead><tbody>
+<tr><td>B0</td><td>8bit PARLIOとDDR3転送</td><td>往復通信・CRC・実効帯域測定</td></tr>
+<tr><td>B1</td><td>2D描画</td><td>FPGAがフレームを生成、Tab5内蔵LCDへ表示</td></tr>
+<tr><td>B2</td><td>3Dワイヤーフレーム</td><td>回転キューブを描画、30FPS目標</td></tr>
+<tr><td>B3</td><td>大量オブジェクト負荷試験</td><td>CPU/GPUモード比較、最大オブジェクト数測定</td></tr>
+<tr><td>B4</td><td>フラットポリゴン</td><td>三角形描画・Zバッファ・ダブルバッファ</td></tr>
+<tr><td>B5</td><td>高速化</td><td>640×360 RGB565で60FPS評価、帯域不足時に転送改善</td></tr>
+</tbody></table></div>
+<h2>非目標（初期段階）</h2>
+<ul>
+<li>OpenGL互換GPUの実装</li>
+<li>1280×720 RGB565全面転送で60FPS（8bit PARLIOでは帯域不足）</li>
+<li>Linuxドライバを前提とすること</li>
+<li>Linux外部メモリ管理との同時稼働</li>
+</ul>
+<h2>移植性</h2>
+<p>GPUの描画RTLとコマンド体系はFPGAボード固有のI/O層・DDRメモリ層から分離し、将来Tang Nano 9K/20K等へ移植可能な構造を目指す。ただしFPGA資源、RAM容量・規格、映像出力はボードごとに異なる。</p>
+<h2>当面の次作業</h2>
+<ul>
+<li>GPUコマンド仕様とフレーム転送プロトコルを定義。</li>
+<li>8bit PARLIO DMA受信の性能とLCD更新パイプラインを測定。</li>
+<li>FPGA側2DラインエンジンとDDR3フレームバッファを実装。</li>
+<li>固定小数点3D変換へ拡張する。</li>
+</ul></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

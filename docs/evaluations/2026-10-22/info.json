@@ -1,0 +1,72 @@
+{
+  "scenes": [
+    {
+      "id": 0,
+      "name": "Wireframe fleet",
+      "cpu": true,
+      "fpga": false
+    },
+    {
+      "id": 1,
+      "name": "Solid / Z-buffer",
+      "cpu": true,
+      "fpga": false
+    },
+    {
+      "id": 2,
+      "name": "Mandelbrot zoom",
+      "cpu": true,
+      "fpga": false
+    },
+    {
+      "id": 3,
+      "name": "Julia morph",
+      "cpu": true,
+      "fpga": false
+    },
+    {
+      "id": 4,
+      "name": "Particle vortex",
+      "cpu": true,
+      "fpga": false
+    },
+    {
+      "id": 5,
+      "name": "Kepler galaxy",
+      "cpu": true,
+      "fpga": false
+    },
+    {
+      "id": 6,
+      "name": "Procedural fire",
+      "cpu": true,
+      "fpga": false
+    },
+    {
+      "id": 7,
+      "name": "Flow / cylinder wake",
+      "cpu": true,
+      "fpga": false
+    }
+  ],
+  "project": "tab5_gpu_lab",
+  "version": "31c2eba-dirty",
+  "idf": "5.5.5",
+  "build_date": "Oct 22 2026",
+  "build_time": "16:22:49",
+  "elf_sha256": "59b4947204b3fce59b1975040983294eab96c93f7771638a2096e2727a75fffd",
+  "chip_revision": 103,
+  "boot_id": 83925910,
+  "width": 640,
+  "height": 360,
+  "loads": 3,
+  "warmup_frames": 24,
+  "sample_frames": 120,
+  "fps_definition": "software_pipeline_not_panel_scanout",
+  "capture_scope": "viewport_or_ui",
+  "free_heap": 30584279,
+  "free_internal_heap": 278555,
+  "ui_allocator": "system",
+  "ui_heap_total": null,
+  "ui_heap_free": null
+}

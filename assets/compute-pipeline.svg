@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 480" role="img" aria-labelledby="title desc">
+  <title id="title">INT8計算アクセラレータの処理経路</title>
+  <desc id="desc">CPUで前処理した入力をDDRへ送り、FPGAが入力と重みをタイル単位で読み込みINT8畳み込みを実行し結果をDDRへ戻す。CPUが未対応演算と検出後処理を担当する。全体FPSと各区間時間を測定する設計案。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#b8c9e6"/></marker></defs>
+  <rect width="1000" height="480" rx="24" fill="#0b1426"/>
+  <g font-family="sans-serif" text-anchor="middle" fill="#eef5ff">
+    <text x="500" y="45" font-size="25" font-weight="700">CNN 計算：タイルごとに読み込み、演算する</text>
+    <rect x="30" y="155" width="185" height="150" rx="16" fill="#142a43" stroke="#4ddad4" stroke-width="2"/>
+    <text x="122" y="194" font-size="22" font-weight="700">CPU 前処理</text><text x="122" y="233" font-size="17">画像の整形</text><text x="122" y="264" font-size="17">入力の量子化</text>
+    <rect x="275" y="105" width="450" height="255" rx="18" fill="#161e39" stroke="#ba99ff" stroke-width="2"/>
+    <text x="500" y="139" font-size="21" font-weight="700">FPGA 計算ビットストリーム</text>
+    <rect x="300" y="160" width="170" height="165" rx="12" fill="#26304d"/>
+    <text x="385" y="195" font-size="21">DDR メモリ</text><text x="385" y="233" font-size="17">入力・重み</text><text x="385" y="266" font-size="17">中間結果・出力</text>
+    <rect x="525" y="160" width="175" height="165" rx="12" fill="#30234e"/>
+    <text x="612" y="195" font-size="21">INT8 Conv</text><text x="612" y="233" font-size="17">タイルバッファ</text><text x="612" y="266" font-size="17">積和・再量子化</text>
+    <path d="M480 242H515" stroke="#b8c9e6" stroke-width="2.5" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+    <rect x="785" y="155" width="185" height="150" rx="16" fill="#142a43" stroke="#4ddad4" stroke-width="2"/>
+    <text x="877" y="194" font-size="22" font-weight="700">CPU 後処理</text><text x="877" y="233" font-size="17">未対応演算</text><text x="877" y="264" font-size="17">検出結果・描画</text>
+    <path d="M220 230H265M735 230H775" stroke="#b8c9e6" stroke-width="2.5" marker-end="url(#arrow)"/>
+    <text x="500" y="401" font-size="19">評価：全体 FPS ・推論精度・転送時間・FPGA 演算時間</text>
+    <text x="500" y="438" font-size="16" fill="#b8c9e6">設計案 ／ 対応演算と量子化条件はモデル解析・検証後に確定</text>
+  </g>
+</svg>

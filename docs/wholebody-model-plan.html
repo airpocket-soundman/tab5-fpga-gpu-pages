@@ -1,0 +1,68 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PINTO WholeBody モデルの選定と評価 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>PINTO WholeBody モデルの選定と評価</h1>
+<p>更新日：2026-10-22。Nを初期解析対象とし、検出が粗ければT/Sへ拡張する。</p>
+<p>モデルの規模と処理解像度は別の変数として比較する。最小モデルを最終採用する決定ではない。</p>
+<h2>対象と出力</h2>
+<p>候補はPINTO0309のYOLOv9 Wholebody25。</p>
+<p>身体、頭、顔、手足、方向、属性など25クラスの物体検出で、133点の姿勢キーポイントモデルではない。</p>
+<p>先に調べた一般的なYOLO11の結果や姿勢推定の指標を、このモデルの結果として使わない。</p>
+<p>配布元READMEによると、<code>post</code>版は前処理とNMS等の後処理を含む。</p>
+<p>ファイル名の解像度と外部入力画像の寸法の意味は版により異なるため、実グラフの入出力を検査する。</p>
+<p>ユーザーの指定が別のWholeBody世代を意味する場合も、同じ監査手順で差し替えられる構成にする。</p>
+<h2>実ファイルの解析結果</h2>
+<p>配布元フォルダの確認版：<code>17cef79f2fe593a3c8f8e92d5970b0ca26e52063</code>。</p>
+<p><code>download_n.sh</code>の公開アーカイブからONNXを選択し、ONNX checkerとshape inferenceを実行した。</p>
+<p>配布スクリプトは実行せず、モデルを読み出した。モデルのSHA256は各JSONに記録している。</p>
+<div class="table-scroll"><table><thead><tr><th>N版</th><th>入力</th><th>出力</th><th>初期化テンソルのバイト数</th><th>畳み込みMAC数</th></tr></thead><tbody>
+<tr><td>raw 128×160</td><td>FLOAT 1×3×128×160</td><td>FLOAT 1×29×420</td><td>2,419,064</td><td>61,063,640</td></tr>
+<tr><td>raw 192×320</td><td>FLOAT 1×3×192×320</td><td>FLOAT 1×29×1260</td><td>2,429,144</td><td>183,190,920</td></tr>
+<tr><td>post 128×160</td><td>FLOAT 1×3×H×W</td><td>FLOAT N×7</td><td>2,419,228</td><td>61,063,640</td></tr>
+</tbody></table></div>
+<p>raw出力の29は4座標と25クラスに対応する構成として、デモのdecode実装と照合して確定する。</p>
+<p>MAC数はshapeが判明したConvのみで、活性化・前後処理・転送などの処理量を含まない。</p>
+<p>初期化テンソルには学習済み重み以外の定数も含まれる。最大テンソルの大きさはピーク同時使用メモリではない。</p>
+<p>raw版の演算子はConv 186個、Sigmoid 180個、Mul 180個、Add 44個と、</p>
+<p>AveragePool/MaxPool/Resize/Concat/Slice/Split/Reshape/Transpose/Softmax/Sub/Div。</p>
+<p>post版にはNonMaxSuppression、Gather/GatherND、Castなども含まれる。</p>
+<p>したがってConvとReLUだけを作って「WholeBody対応」と扱うことはできない。</p>
+<p>配布ファイルはFLOATグラフで、INT8量子化済みモデルを確認したわけではない。</p>
+<p>解析JSON：</p>
+<ul>
+<li><a href="model-audit/wholebody25-n-128x160.json">N raw 128×160</a></li>
+<li><a href="model-audit/wholebody25-n-192x320.json">N raw 192×320</a></li>
+<li><a href="model-audit/wholebody25-n-post-128x160.json">N post 128×160</a></li>
+</ul>
+<h2>選定手順</h2>
+<ul>
+<li>同じ入力列でNの128×160と192×320をPC参照実行し、顔・手などの見落としとボックスを確認する。</li>
+<li>Nで検出が不足する場合、同じ処理解像度でT、次にSを監査・参照実行する。</li>
+<li>重みだけでなく特徴マップの生存期間、演算ワークスペース、P4/FPGA間の転送量を計算する。</li>
+<li>INT8化の校正用入力と、別の評価用入力を分ける。スケール・ゼロ点・丸めをモデル成果物として固定する。</li>
+<li>品質基準を満たす候補から、P4 32MB PSRAMとFPGA 128MB DDR3へ配置可能な構成を選ぶ。</li>
+<li>同じ量子化モデルをCPU参照とFPGAで比較する。FP32からの品質低下も別途測る。</li>
+</ul>
+<p>N/T/Sの実測比較はまだ行っていない。T/Sのモデルを監査済み・動作済みとは記録しない。</p>
+<p>モデルがP4に収まらない場合、CPU基準をPC実行へ置き換えてP4比較と呼ばない。</p>
+<p>タイル実行、外部保存、別の候補への変更を明示し、同じ実行条件の基準を用意する。</p>
+<h2>評価指標</h2>
+<ul>
+<li>PC FP32参照とのボックスIoU、クラス・スコア・検出数の差を、同じ閾値・NMS条件で比較する。</li>
+<li>CPU整数参照とRTLの層出力を照合し、演算誤差とモデルの量子化誤差を分ける。</li>
+<li>ラベル付き評価入力がある場合はクラス別の適合率・再現率やAPを測る。</li>
+<li>正解ラベルがない入力での参照モデルとの一致率を、真の検出精度やmAPと呼ばない。</li>
+<li>前処理、入力転送、FPGA計算、未対応CPU区間、出力転送、decode/NMS、描画を別々に測る。</li>
+<li>入力から検出表示までの遅延p50/p95、全体FPS、メモリ、転送量を保存する。</li>
+</ul>
+<p>数値の合格閾値は評価入力を確認して決め、結果を見た後で条件を緩めない。</p>
+<p>カメラ撮影と固定動画リプレイを分け、同じフレームを処理するリプレイを初期比較に使う。</p>
+<p>Tab5を使用しない期間はPC参照・モデル監査・量子化とRTL照合までを対象にする。</p>
+<h2>再現とライセンス</h2>
+<pre><code>
+python -m pip install onnx
+
+python tools/onnx_audit.py path/to/model.onnx --output build/model-audit.json
+
+</code></pre>
+<p>モデルは配布元の<code>download_n.sh</code>等から取得する。重みはGitに追加しない。</p>
+<p>Wholebody25フォルダはGPLv3の表示があり、</p>
+<p>配布・改変・組込み時は対象ファイルのライセンスと帰属表示を確認する。</p>
+<p>解析ツールの分割案は実装対応を示すものではなく、FPGAの性能見積もりも出さない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

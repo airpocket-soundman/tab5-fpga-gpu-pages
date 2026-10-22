@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 480" role="img" aria-labelledby="title desc">
+  <title id="title">Tab5と用途別FPGAの構成</title>
+  <desc id="desc">Tab5が共通通信を通してFPGAを制御する。ゲーム描画と計算は別のビットストリームを選択して使い、DDRメモリと測定基盤を共有する概念図。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#b8c9e6"/></marker></defs>
+  <rect width="1000" height="480" rx="24" fill="#0b1426"/>
+  <g font-family="sans-serif" text-anchor="middle" fill="#eef5ff">
+    <text x="500" y="45" font-size="25" font-weight="700">用途に合わせて FPGA の回路を切り替える</text>
+    <rect x="35" y="150" width="220" height="175" rx="18" fill="#142a43" stroke="#4ddad4" stroke-width="2"/>
+    <text x="145" y="195" font-size="25" font-weight="700">Tab5</text>
+    <text x="145" y="235" font-size="18">ゲーム・推論の制御</text>
+    <text x="145" y="268" font-size="18">画面表示・結果集計</text>
+    <path d="M270 235H395" stroke="#b8c9e6" stroke-width="3" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+    <text x="332" y="198" font-size="17">共通通信</text>
+    <text x="332" y="281" font-size="15" fill="#b8c9e6">命令・データ</text>
+    <rect x="415" y="85" width="550" height="340" rx="20" fill="#101e36" stroke="#6682b6" stroke-width="2"/>
+    <text x="690" y="120" font-size="22" font-weight="700">Tang Primer 20K / FPGA</text>
+    <rect x="440" y="145" width="235" height="110" rx="14" fill="#163b49" stroke="#4ddad4"/>
+    <text x="557" y="181" font-size="21">ゲーム描画器</text><text x="557" y="217" font-size="17">三角形・Z・スプライト</text>
+    <rect x="705" y="145" width="235" height="110" rx="14" fill="#30234e" stroke="#ba99ff"/>
+    <text x="822" y="181" font-size="21">計算アクセラレータ</text><text x="822" y="217" font-size="17">INT8 畳み込み・行列積</text>
+    <text x="690" y="286" font-size="17" fill="#d3bfff">別ビットストリームを選択して使用</text>
+    <path d="M557 300V322M822 300V322" stroke="#b8c9e6" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="440" y="335" width="500" height="65" rx="12" fill="#1a2e48"/>
+    <text x="690" y="363" font-size="18">共通基盤：DDR メモリ・バッファ管理</text>
+    <text x="690" y="387" font-size="16" fill="#b8c9e6">完了通知・エラー・性能カウンタ</text>
+    <text x="500" y="458" font-size="16" fill="#9fb3d3">設計の概念図 ／ 同時実行や実測性能を示すものではありません</text>
+  </g>
+</svg>

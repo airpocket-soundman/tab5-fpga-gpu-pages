@@ -1,0 +1,82 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>USB評価API v1 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>USB評価API v1</h1>
+<p>Tab5のUSB Serial/JTAGポート（現在の機体ではCOM22）を使用する。USB CDCのボーレート指定値は115200。</p>
+<p>WindowsではDTRを有効、RTSを無効にして接続する。同梱クライアントで設定済み。</p>
+<p>クライアントは接続時に読み取り専用のinfoを最大15秒再試行し、起動待ちを行う。</p>
+<p>設定変更や測定開始を自動で再送しない。接続ごとに要求IDの開始値を変え、古い応答との混同を避ける。</p>
+<p>API専用ドライバがUSBを所有し、ESP-IDFログとCSVログはUART側へ出す。USBへ起動ログを混ぜない。</p>
+<p>PCから操作し、実測結果・描画画像を取得できる。認証のないローカルUSB API。</p>
+<h2>プロトコル</h2>
+<p>UTF-8 JSONを1行で送る。末尾はLF。要求は最大1024バイト。1要求ずつ応答を待って次を送る。</p>
+<p>APIタスクのコマンド実行順に処理する。未知コマンド、無効値、未対応GPUにはエラーを返す。</p>
+<pre><code>
+{&quot;v&quot;:1,&quot;id&quot;:1,&quot;cmd&quot;:&quot;status&quot;}
+
+</code></pre>
+<p>成功応答は <code>{&quot;ok&quot;:true,&quot;data&quot;:{...},&quot;v&quot;:1,&quot;id&quot;:1}</code>。</p>
+<p>失敗応答は <code>{&quot;ok&quot;:false,&quot;error&quot;:&quot;invalid_argument&quot;,&quot;message&quot;:&quot;...&quot;,&quot;v&quot;:1,&quot;id&quot;:1}</code>。</p>
+<p>idは0〜2147483647の整数。解析不能な要求・長すぎる要求はid=nullで返す。</p>
+<p>応答は最大約2.46MB（UI capture）。受信側は改行まで蓄積する。接続断・不完全な応答時は再接続する。</p>
+<div class="table-scroll"><table><thead><tr><th>cmd</th><th>引数</th><th>内容</th></tr></thead><tbody>
+<tr><td>info</td><td>なし</td><td>ファーム・IDF版、ビルド時刻、ELF SHA256、チップrev、boot_id、対応シーン、解像度、測定条件、空きメモリ、UIアロケータ</td></tr>
+<tr><td>status</td><td>なし</td><td>現在のscene/load/mode、running/measuring/suite、run_id、フレーム、採用サンプル数、直近時間・演算数、稼働時間</td></tr>
+<tr><td>set</td><td>scene、load、mode、running（任意）</td><td>設定を検証してまとめて変更。測定をキャンセルしアニメーションのフレーム番号を0へ戻す</td></tr>
+<tr><td>bench</td><td>なし</td><td>現在条件で24ウォームアップ＋120採用フレームを測定。進行中ならbusy</td></tr>
+<tr><td>suite</td><td>なし</td><td>現在バックエンドで8シーン×3負荷を順次測定。進行中ならbusy</td></tr>
+<tr><td>stop</td><td>なし</td><td>測定をキャンセルし、アニメーションを停止</td></tr>
+<tr><td>results</td><td>なし</td><td>全測定済み結果とboot_id。各行にrun_id、scene/load/mode、平均・p95・pipeline・frame_fps</td></tr>
+<tr><td>capture</td><td>scope（viewport/ui、既定viewport）</td><td>完成フレームまたはUI全体をRGB565LE/base64で返す。測定中・完成画像なしはbusy</td></tr>
+</tbody></table></div>
+<p>sceneは0:ワイヤー、1:ポリゴン、2:Mandelbrot、3:Julia、4:粒子、5:銀河、6:炎、7:渦流。</p>
+<p>loadは0/1/2、modeは文字列CPU/FPGA、runningはJSON真偽値。</p>
+<p>setで未対応GPUを指定した場合、設定は一切変更しない。</p>
+<p>set/stopの応答は状態変更の受理を示す。描画中フレームの処理完了と同時ではない。</p>
+<p>設定後の画像を必要とする場合はrunning=trueで開始し、statusのframeが進むのを待ってstopする。</p>
+<h2>自動評価</h2>
+<pre><code>
+python -m pip install pyserial pillow
+
+python tools/gpu_lab.py --port COM22 info
+
+python tools/gpu_lab.py --port COM22 set --scene 5 --load 1 --mode CPU --running true
+
+python tools/gpu_lab.py --port COM22 bench --wait --output build/galaxy-results.json
+
+python tools/gpu_lab.py --port COM22 stop
+
+python tools/gpu_lab.py --port COM22 capture --output build/galaxy.png
+
+python tools/gpu_lab.py --port COM22 capture --scope ui --output build/ui.png
+
+python tools/gpu_lab.py --port COM22 suite --wait --timeout 3600 --output build/cpu-suite.json
+
+</code></pre>
+<p>JSON結果と同名CSVを保存する。<code>results</code>でも全保存結果を取得できる。</p>
+<p>画像取得はPillowがあればPNG、なければPPMを使用。既定は640×360の描画領域。</p>
+<p>scope=uiではグラフ・操作部を含む1280×720のLVGL画面を取得する（液晶の物理走査そのものの読み出しではない）。</p>
+<p>バックライトの点灯やパネルの実表示は画像取得だけでは確認できない。</p>
+<p>captureはscene/load/mode/frameとFNV-1a 32bitチェックサムも返す。クライアントで長さ・チェックサムを照合する。</p>
+<p><code>Client</code>クラスをPythonから呼べる。<code>measure</code>はboot_id/run_idを監視し、再起動、別の測定への変更、</p>
+<p>測定途中のキャンセル、結果数不足を成功として扱わない。待機のタイムアウトは測定を停止しない。</p>
+<p>止めるには明示的にstopを送る。</p>
+<p>測定値はRAMに保持。ファーム再書き込み・再起動前にresultsで保存する。</p>
+<p>infoと一緒に保存し、ビルドと測定条件を照合する。通信による割り込み・状態取得は測定へわずかに影響するため、</p>
+<p>測定中のポーリングは1秒程度の間隔に抑える。captureは測定中に禁止する。</p>
+<p>タッチ操作とAPI操作は同じ状態を変更する。自動評価中は端末を操作しない。</p>
+<h2>追加シーンの性質</h2>
+<ul>
+<li>Kepler galaxy：固定した中心質点の周りの円軌道。角速度は半径の-3/2乗に比例。</li>
+</ul>
+<p>  1024/4096/16384個の星。粒子間の相互重力を解くN体計算ではない。</p>
+<ul>
+<li>Procedural fire：2/4/6オクターブの滑らかなノイズを上昇させ、熱分布として色付け。</li>
+</ul>
+<p>  燃焼・温度移流を物理的に解くモデルではない。</p>
+<ul>
+<li>Flow / cylinder wake：左からの流入が円柱を回り込み、下流の交互の渦に巻き込まれる。</li>
+</ul>
+<p>  512/2048/8192個のトレーサーの位置をフレーム間で保持し、各フレーム2サブステップの</p>
+<p>  中点法で移流する。減衰する残像で移動を追える。速度場は円柱のポテンシャル流と軟化した渦の合成。</p>
+<p>  Navier–Stokesや自由表面の液体シミュレーションは今後の拡張。</p>
+<p>いずれも固定シードとフレーム番号で再現でき、将来のGPU版と同じ入力で比較するための描画・演算負荷。</p>
+<p>流れはフレーム0で状態を初期化し、連続フレームでは状態を引き継ぐ。飛んだフレーム番号を要求した場合は</p>
+<p>0から再生して同じ状態を得る。CPUの流れ用にRGB565残像1面と粒子配列を追加で保持する。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

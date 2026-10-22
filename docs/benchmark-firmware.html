@@ -1,0 +1,106 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPU LAB 評価ファーム | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>GPU LAB 評価ファーム</h1>
+<h2>実装範囲</h2>
+<p>Tab5単体で動くESP-IDF / C++17ファーム。Espressif公式Tab5 BSP 1.3.2とLVGL 9を使用する。</p>
+<p>描画は独自CPUラスタライザ、UIとタッチはLVGL。横向き1280×720のダークUIに、</p>
+<p>640×360 RGB565の等倍映像とCPU/FPGA比較グラフを表示する。</p>
+<div class="table-scroll"><table><thead><tr><th>シーン</th><th>LIGHT / MEDIUM / HEAVY</th><th>内容</th></tr></thead><tbody>
+<tr><td>Wireframe fleet</td><td>16 / 64 / 144個</td><td>2軸回転、透視投影、キューブあたり12本の線</td></tr>
+<tr><td>Solid / Z-buffer</td><td>16 / 64 / 144個</td><td>キューブあたり12三角形、逆深度Zバッファ、面ごとの色</td></tr>
+<tr><td>Mandelbrot zoom</td><td>最大24 / 64 / 128反復</td><td>全画素計算、周期的なズーム</td></tr>
+<tr><td>Julia morph</td><td>最大24 / 64 / 128反復</td><td>全画素計算、複素定数のアニメーション</td></tr>
+<tr><td>Particle vortex</td><td>512 / 2048 / 8192個</td><td>固定シード、渦運動、3×3ピクセルの粒子</td></tr>
+<tr><td>Kepler galaxy</td><td>1024 / 4096 / 16384個</td><td>中心質点の周りの解析的円軌道、加算合成</td></tr>
+<tr><td>Procedural fire</td><td>2 / 4 / 6オクターブ</td><td>上昇するノイズの熱分布</td></tr>
+<tr><td>Flow / cylinder wake</td><td>512 / 2048 / 8192個</td><td>円柱の周囲の流れと後流渦、状態を保持した移流と残像</td></tr>
+</tbody></table></div>
+<p>3D変換はまず浮動小数点で実装。FPGAで固定小数点化する際は精度条件をそろえる。</p>
+<p>この段階では汎用3Dモデル読み込み、テクスチャ、GPU通信、ハードウェア高速化は未実装。</p>
+<h2>ビルド・書き込み</h2>
+<p>ESP-IDF 5.4以上・6.0未満のESP32-P4対応環境を有効にし、リポジトリのルートで実行する。</p>
+<p>初回はComponent ManagerがBSPなどを取得する。解決された依存版はdependencies.lockに保存される。</p>
+<pre><code>
+idf.py set-target esp32p4
+
+idf.py build
+
+idf.py -p COM番号 flash monitor
+
+</code></pre>
+<p>USB書き込み端子・COM番号は実機に合わせる。PSRAMが必要。</p>
+<p>既定は16MB Flash、ESP32-P4 Rev 1.x（Rev &lt;3）向け。Rev 3.xの機体ではmenuconfigで</p>
+<p><code>ESP32P4_SELECTS_REV_LESS_V3</code>を無効にして最小リビジョンを選び直す。</p>
+<p>既存sdkconfigがある場合はdefaultsの変更が自動反映されないため、menuconfigで設定を確認する。</p>
+<p>アプリ領域は4MB、OTAは未対応。</p>
+<p>BSPが対応するLCD種類を利用する。横向き回転・タッチ座標・RGB565色順は実機で確認する。</p>
+<p>CPU描画は単一タスク、PSRAM上のRGB565バッファ2面と16bit深度1面（計約1.38MB）を使用する。</p>
+<p>LVGLとLCDドライバが使うメモリは別途必要。表示同期によるティアリング抑制は未検証。</p>
+<p>LVGLの動的メモリはESP-IDFの標準malloc/freeを使用し、固定64KBの専用領域に制限しない。</p>
+<p>流れの描画では残像バッファ1面と粒子配列を追加で保持する。USB画像取得時にも一時メモリが必要。</p>
+<h2>操作</h2>
+<ul>
+<li>SCENE：8シーンを巡回。</li>
+<li>LOAD：3段階の負荷を巡回。グラフもその負荷の結果へ切り替わる。</li>
+<li>CPU / GPU：バックエンド切替。現段階のFPGAは未実装通知を出しCPUを維持する。</li>
+<li>PLAY / PAUSE：アニメーション停止・再開。測定中なら測定をキャンセル。</li>
+<li>BENCH：選択シーン・負荷を測定。</li>
+<li>RUN SUITE：選択バックエンドで8シーン×3負荷を順次測定。</li>
+</ul>
+<p>シーン・負荷・モードの変更は進行中の測定をキャンセルする。測定済みの結果は保持。</p>
+<p>同一条件を再測定すると上書き。結果はRAMのみで、再起動すると消える。</p>
+<p>負荷の高いフラクタルは1フレーム完了まで操作の反映に時間がかかる。</p>
+<h2>測定の定義</h2>
+<p>BENCHとSUITEはフレーム番号を0へ戻し、24フレームをウォームアップ、続く120フレームを採用する。</p>
+<p>アニメーションは時刻でなくフレーム番号に依存し、バックエンド間で同じ計算対象にする。</p>
+<p>フレーム上限を設けずに実行。各フレームに1 RTOS tickの待機を入れ、タスクの実行機会を確保する。</p>
+<ul>
+<li>render_mean_ms：クリア・座標変換・描画を含むバックエンド呼び出し時間の平均。</li>
+<li>render_p95_ms：描画時間を昇順にしたnearest-rank 95パーセンタイル。</li>
+<li>pipeline_mean_ms：描画開始からLVGL更新処理、ロック待ち、1 tick待機を含む時間の平均。</li>
+<li>frame_fps：1000 / pipeline_mean_ms。実液晶の走査FPSではない。</li>
+</ul>
+<p>ライブ値は直近フレームの参考値。測定グラフは120フレームの集計値。</p>
+<p>グラフは同じ負荷・640×360・RGB565の結果を共通スケールで表示する。</p>
+<p>GPU結果が無い間は欠測「--」。0 FPSや推定値として描かない。</p>
+<p>グラフの倍率はGPU frame_fps / CPU frame_fps。</p>
+<p>UIの数値・進捗変更に伴う描画負荷も存在するため、純粋なラスタライザ性能にはrender_mean_msを使う。</p>
+<p>CPU使用率、LCD走査FPS、転送帯域、複数回測定のばらつきはまだ集計しない。</p>
+<p>シリアルに以下の形式で出力する。行頭がBENCH,の行を抽出してCSVとして保存できる。</p>
+<p>USBは<a href="usb-api.html">JSON API</a>専用。以下のログはUART側へ出力し、USBからはresultsコマンドで取得する。</p>
+<pre><code>
+BENCH_HEADER,schema,mode,scene,load,width,height,frames,render_mean_ms,render_p95_ms,pipeline_mean_ms,frame_fps
+
+BENCH,1,CPU,0,0,640,360,120,...
+
+</code></pre>
+<p>sceneは上の表の順で0〜7、loadは0〜2。ヘッダ先頭列をtypeとして読み替える。</p>
+<p>ボード・クロック・IDF版・コミット・LCD設定を測定ログと一緒に記録すること。</p>
+<h2>FPGA接続時</h2>
+<p><code>main/lab.hpp</code>のBackendを共通契約とする。Fpga::availableはシーン別の実装有無・接続状態を返す。</p>
+<p>renderは同じRequestを受け取り、Target.colorへ完成フレームを返す同期API。</p>
+<p>コマンド送信・FPGA完了待ち・PARLIO受信までをrender時間に含め、同じ表示経路へ渡す。</p>
+<p>未対応シーンや通信失敗ではfalseを返し、CPUへの暗黙フォールバックは行わない。</p>
+<p>現行のFpgaは常に未対応を返し、GPIOへアクセスしない。</p>
+<p>将来のコマンド仕様ではフレーム番号、シーン、負荷、解像度、数値精度、プロトコル版を固定する。</p>
+<p>CPUとFPGAの画像・深度・フラクタル反復を照合してから速度比較を有効にする。</p>
+<p>転送時間・FPGA内部時間は今後分離する。現段階のC++ APIはオンワイヤのプロトコルではない。</p>
+<h2>ホスト検証</h2>
+<p>C++17コンパイラで以下を実行する（buildフォルダを事前作成）。</p>
+<pre><code>
+c++ -std=c++17 -O2 -Wall -Wextra -Werror -I main main/lab.cpp tests/renderer_test.cpp -o build/renderer_test
+
+build/renderer_test
+
+</code></pre>
+<p>全シーン・全負荷、同条件の再現性、アニメーション変化、Zバッファ更新、バッファ前後のガード、</p>
+<p>集計・p95・無効入力・GPU未対応を検査。確認用画像をbuild/scene_0.ppm〜scene_7.ppmへ出力する。</p>
+<p>ホスト検証はESP-IDFビルドと実機動作の代わりにはならない。</p>
+<h3>検証記録（2026-10-22）</h3>
+<ul>
+<li>Windowsホストで上記テストを実行し全項目PASS。5シーンの出力画像も目視確認。</li>
+<li>ESP-IDF 5.5.5 / BSP 1.3.2 / LVGL 9.6.0~1でESP32-P4 Rev 1.x向け全体ビルド成功。</li>
+<li><code>build/idf/tab5_gpu_lab.bin</code>、ブートローダ、パーティションテーブルを生成。</li>
+<li>初版の起動・描画は実機で確認済み。USB APIと追加シーンの測定は<a href="validation-2026-10-22.html">実機評価結果</a>を参照。</li>
+<li>LCD同期・ティアリングと全24条件の実機一括測定は未検証。</li>
+</ul>
+<p>参考：公式BSP、</p>
+<p>表示サンプル。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

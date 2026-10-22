@@ -1,0 +1,64 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPU LAB 実機評価（2026-10-22） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>GPU LAB 実機評価（2026-10-22）</h1>
+<p>Tab5 / ESP32-P4 Rev 1.3 / 400MHz / COM22、ESP-IDF 5.5.5、BSP 1.3.2、LVGL 9.6.0~1。</p>
+<p>640×360 RGB565、CPUモード。24フレームをウォームアップし、続く120フレームを採用した。</p>
+<p>FPSは描画からソフトウェア表示処理までの値で、LCDの走査FPSではない。</p>
+<p>USBから約1秒ごとに状態を取得。単一実行の値で、反復測定のばらつき評価はまだ行っていない。</p>
+<h2>現在の書き込み済みビルド</h2>
+<p>ELF SHA256: <code>59b4947204b3fce59b1975040983294eab96c93f7771638a2096e2727a75fffd</code></p>
+<p>LVGLのメモリ管理はESP-IDF標準malloc/free。固定64KB領域への制限を外している。</p>
+<p>画像プレビューから文字欠けを疑ったが、保存画像の拡大切り出しと画素照合では文字は正常だった。</p>
+<p>実際のパネルでの文字欠けは確認していない。</p>
+<p>途中で試した手動メモリ拡張では起動停止が起きたため撤去し、起動・API応答を復旧した。</p>
+<p>現在のビルドで以下の実機テストを再実行している。</p>
+<h2>USB・画像・描画の検証</h2>
+<ul>
+<li>info/status/results、設定変更、測定開始・進捗取得、一時停止を確認。</li>
+<li>不正JSON、長すぎる要求、未知コマンド、無効引数、未対応FPGAを拒否。</li>
+<li>無効な設定要求で既存設定が変わらないことを確認。</li>
+<li>測定中の重複測定・画像取得をbusyで拒否。</li>
+<li>8シーンの完成画像を取得し、長さとFNV-1aを照合。</li>
+<li>測定後のLIGHT画面とMEDIUMの流れ画面で、それぞれUI全体を3回撮影。</li>
+<li>各3回の停止中画像は全体のチェックサムが一致。取得画像の文字・グラフ・ボタンを目視確認。</li>
+<li>タイトル領域は以前の正常な画像と画素単位で一致。今回の検証では文字欠けを再現していない。</li>
+<li>ホストで8シーン×3負荷、再現性、アニメーション変化、深度、境界、測定集計を検証。</li>
+<li>流れの連続フレーム計算とフレーム0からの再生が同じ結果になることを検証。</li>
+<li>ESP32-P4向け全体ビルド、実機書き込み、Flashのハッシュ照合に成功。</li>
+</ul>
+<p>UI画像は実機内部のLVGLによる生成画像であり、液晶の実写や物理走査の読み出しではない。</p>
+<p>バックライト点灯やパネルの実表示は、API画像だけでは確認できない。</p>
+<p>Tab5全体のエミュレータは使用していない。</p>
+<h2>LIGHT条件の8シーン</h2>
+<div class="table-scroll"><table><thead><tr><th>シーン</th><th>フレーム処理FPS</th><th>平均描画ms</th><th>描画p95 ms</th></tr></thead><tbody>
+<tr><td>ワイヤーフレーム</td><td>29.14</td><td>15.50</td><td>18.68</td></tr>
+<tr><td>Zバッファ付きポリゴン</td><td>15.43</td><td>45.97</td><td>48.56</td></tr>
+<tr><td>Mandelbrot</td><td>4.58</td><td>199.75</td><td>214.38</td></tr>
+<tr><td>Julia</td><td>4.43</td><td>207.30</td><td>212.64</td></tr>
+<tr><td>パーティクル</td><td>31.62</td><td>12.16</td><td>14.54</td></tr>
+<tr><td>銀河</td><td>30.70</td><td>13.57</td><td>16.75</td></tr>
+<tr><td>炎</td><td>2.44</td><td>390.64</td><td>394.56</td></tr>
+<tr><td>流れ（円柱後流）</td><td>15.23</td><td>47.09</td><td>50.43</td></tr>
+</tbody></table></div>
+<h2>流れの3負荷</h2>
+<p>粒子の位置をフレーム間で保持し、中点法の2サブステップで移流する。</p>
+<p>円柱を回り込む流入と下流の渦、減衰する残像によって移動を追える。</p>
+<p>速度場は解析モデルで、圧力・粘性・自由表面を解く液体ソルバではない。</p>
+<div class="table-scroll"><table><thead><tr><th>粒子数</th><th>フレーム処理FPS</th><th>平均描画ms</th></tr></thead><tbody>
+<tr><td>512</td><td>15.23</td><td>47.09</td></tr>
+<tr><td>2,048</td><td>14.51</td><td>50.41</td></tr>
+<tr><td>8,192</td><td>11.05</td><td>72.01</td></tr>
+</tbody></table></div>
+<h2>生データと再実行</h2>
+<p>ビルド情報・JSON/CSV結果・代表UI画像は <a href="evaluations/2026-10-22/">評価データ</a> に保存。</p>
+<p>全取得画像と作業時のデータは <code>build/hardware-validated/</code>。</p>
+<p>ログは <code>build/hardware-validated.log</code> と <code>build/flow-validated.log</code>。</p>
+<p>buildフォルダはGit管理外のローカル生成物。</p>
+<pre><code>
+python tests/hardware_usb.py --port COM22 --bench-all-light --output build/hardware-validated
+
+python tools/gpu_lab.py --port COM22 suite --wait --timeout 3600 --output build/cpu-suite.json
+
+</code></pre>
+<p>最初のコマンドは設定・画像・LIGHT条件の検証で、全24条件の一括測定ではない。</p>
+<p>全24条件の実機測定、反復測定のばらつき、LCD同期・ティアリング、GPU接続後の比較は今後の作業。</p>
+<p>GPUの実測値はまだない。フラクタル・炎の全画素演算はCPUで重く、GPU比較の候補になる。</p>
+<p>最終状態はFlow / cylinder wake、MEDIUM、CPU、アニメーション実行へ戻した。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

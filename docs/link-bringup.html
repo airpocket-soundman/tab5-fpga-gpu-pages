@@ -1,0 +1,100 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>低速リンク接続試験 v0（実機未検証） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>低速リンク接続試験 v0（実機未検証）</h1>
+<p>2026-10-22。GPU/Compute共通基盤の前段となる、接続確認専用ソース。</p>
+<p>GPUのwire opcodeやLinux用通信ABIとは独立する。通常のGPU LABには組み込まない。</p>
+<p><strong>現在Tab5は別プロジェクトで使用中のため、USB/COMの接続・読出し・操作・書込みは全面停止中。</strong></p>
+<p>以下は基板到着後、ユーザーが再開を指示してから使う準備であり、現在の作業で実機は操作していない。</p>
+<h2>収録物と実行範囲</h2>
+<ul>
+<li><code>bringup/tab5/</code>: 独立したESP-IDFプロジェクト。起動してもGPIOを操作しない。検証済みプロファイルと明示的なarmが揃った場合のみ出力を許可。</li>
+<li><code>bringup/rtl/link_bringup.v</code>: パッケージに依存しないRTL。ID、2バイトecho、反転パターン、CRC検査、エラー応答、タイムアウト、出力解除。</li>
+<li><code>bringup/rtl/link_bus_wrapper.v</code>: 三態接続の説明用wrapper。実基板用topではない。</li>
+<li><code>bringup/tests/</code>: PC上のRTLテストベンチと実行スクリプト。</li>
+<li><code>bringup/profiles/carrier-unverified.json</code>: 電気条件とパッケージピンが未確定のマニフェスト。</li>
+<li><code>bringup/generate_cst.py</code>: 検証項目やピンが不足する場合、CST生成を拒否。合成・bitstream生成・書込みは行わない。</li>
+</ul>
+<p>Tab5向けビルド状態、テスト結果は末尾参照。Tang Primer向けはportable RTL段階であり、</p>
+<p>CST、実基板top、PLL/クロック制約、リセット生成、合成・配置配線、bitstreamは未作成。</p>
+<p>この状態のRTLを「Tang Primerへ書込み可能なファーム完成」と扱わない。</p>
+<h2>接続資料の照合</h2>
+<div class="table-scroll"><table><thead><tr><th>資料</th><th>確認した版</th><th>今回確認した要求・状態</th></tr></thead><tbody>
+<tr><td>tab5-tang-primer20k-carrier</td><td><code>0ff1502e6d2f10f1681480de09087fb3953f39ed</code></td><td>README/AGENTS/共通仕様。回路図・ネットリスト未作成。I/O電圧、電源、起動状態、逆給電、GPIO競合は未確認</td></tr>
+<tr><td>tab5-linux-fpga</td><td><code>6a2cf3de2eff226557c2403ac5256b20695b095a</code></td><td>README、DEVELOPMENT_GOALS、tab5-overrides.dtsi。双方向転送、READY、CRC、DDR3分割アクセス要求。今回検索したDTSとpackage範囲にFPGA/PARLIO用実装は見つからない。独自ドライバ動作未検証</td></tr>
+<tr><td>esp32p4-linux-fpga-memory</td><td><code>e4aa69d09b2643d6f62fe686ef0f3284b109c541</code></td><td>README、研究計画。明示的外部メモリ/演算用途、Linux本体とは別管理。研究側実装・実測は未作成</td></tr>
+<tr><td>tab5-fpga-gpu</td><td>作業基点 <code>256e4c1</code> と作業ツリー</td><td>Project_B、共通仕様、GPU LAB評価記録。640×360 RGB565フレーム受信の目標約13.8MB/s。低速接続試験では帯域成立を証明しない</td></tr>
+</tbody></table></div>
+<p>暫定割当: D0..D7=GPIO18,19,5,3,4,2,48,47、CLK=16、READY=45、DIR=51。</p>
+<p>この割当を確定したものとして扱わない。FPGAパッケージピン、バンク電圧、Core電源と</p>
+<p>Tab5 HVIN/独立5V・共通GNDの実装、内部周辺機器との競合はキャリア側で確認が必要。</p>
+<p>低速のID/パターン/CRC試験は両用途の基本的配線確認に利用できるが、Linuxドライバ、</p>
+<p>PARLIO DMA、DDR3、40MHz転送、GPU/Compute処理そのものは試験しない。</p>
+<h2>電気的な動作条件</h2>
+<p>DIR=0でTab5からFPGAへ、DIR=1でFPGAからTab5へ送る。CLKはTab5のみが駆動。</p>
+<p>READYはFPGAのみが駆動し、応答バッファ有効時に1とする。</p>
+<ul>
+<li>電源投入時は外部のDIR/CLKが不定でも、FPGAのarm=0/reset状態でデータOEを解除する。</li>
+<li>検証済みTab5プロファイルをビルドし、<code>arm &lt;profile_id&gt;</code>を明示実行して低速出力を許可する。</li>
+<li>Tab5はCLK=0/DIR=0を設定、READY=0を待ち、D線を出力へ変更して要求を送る。</li>
+<li>Tab5は全D線を入力へ戻し、200us待ってからDIR=1にする。さらに200us待つ。</li>
+<li>FPGAはDIR同期完了・有効応答・arm・reset解除が揃う場合のみD線を駆動する。</li>
+<li>Tab5は各バイトをCLK=0中に読み、その後CLKを1→0にパルスして次へ進める。</li>
+<li>8バイト読み終わるとFPGAはREADY/OEを解除。Tab5はDIR=0へ戻し、200usの猶予を置く。</li>
+</ul>
+<p>Tab5のCLKは最大5kHz、1トランザクション待ちは100ms。</p>
+<p>FPGAはsys_clkでCLK/DIRを同期する。sys_clkはバスクロックより十分速くすること。</p>
+<p>標準TIMEOUT_CYCLES=2,700,000は27MHzで100ms。採用クロックに合わせて変更する。</p>
+<p>非同期DIR/arm/resetはデータOEを即時解除し、同期済みDIRで有効化する。</p>
+<p>要求途中でDIRを受信側から送信側へ変更すると部分要求を破棄し、D線は駆動しない。</p>
+<p>通信停止時はタイムアウトで要求・応答状態を破棄する。CRC等の照合失敗時、Tab5は全D線を入力へ戻しdisarmする。</p>
+<p>RTLのarm端子を実基板で何に接続するかは未確定。実基板topでは初期0を保証し、</p>
+<p>クロック/リセット安定・プロファイル検証を満たす方法を決める。単に未確認のまま1へ結線しない。</p>
+<p>FPGAのREADY端子も電源断・コンフィグ中は基板側で安全状態を保証する必要がある。</p>
+<p>ファームだけで逆給電や起動時電気条件の安全性は保証できない。</p>
+<h2>接続試験のフレーム</h2>
+<p>固定8バイト。CRC-16/CCITT-FALSE（poly=0x1021, init=0xffff, refin/refout=false, xorout=0）。</p>
+<p>CRC対象は先頭6バイト、末尾はCRC下位→上位バイト。</p>
+<div class="table-scroll"><table><thead><tr><th>位置</th><th>要求</th><th>応答</th></tr></thead><tbody>
+<tr><td>0</td><td>0xa5</td><td>0x5a</td></tr>
+<tr><td>1</td><td>opcode</td><td>status: 0=成功、1=形式/CRC不正、2=未知opcode</td></tr>
+<tr><td>2</td><td>sequence uint8（wrap可）</td><td>要求sequence</td></tr>
+<tr><td>3</td><td>payload長=2</td><td>payload長=2</td></tr>
+<tr><td>4,5</td><td>2バイトpayload</td><td>2バイト結果</td></tr>
+<tr><td>6,7</td><td>CRC16 LE</td><td>CRC16 LE</td></tr>
+</tbody></table></div>
+<p>op=1: ID取得（結果ASCII <code>TP</code>）、2: echo、3: 各payloadバイトのbit反転。</p>
+<p><code>test</code>はIDに続き全256値のechoと反転を実行（513トランザクション）し、完了後disarm。</p>
+<p>walking-bit、0x00/0xff、0x55/0xaaもこの全値試験に含まれる。</p>
+<p>起動時は<code>status</code>/<code>disarm</code>のみ利用可能。現在の<code>arm UNVERIFIED</code>は必ず拒否する。</p>
+<h2>PC上でできる確認</h2>
+<pre><code>
+# プロジェクトを別ビルド先にビルドするだけ。実機操作なし。
+
+idf.py -C bringup/tab5 -B D:/tmp/tab5-link-bringup-build build
+
+# Icarus Verilogがある環境でのみ、RTLシミュレーションを実行。
+
+python bringup/tests/run_rtl.py
+
+# 現在のプロファイルはエラー終了することが正しい。CSTは生成しない。
+
+python bringup/generate_cst.py bringup/profiles/carrier-unverified.json D:/tmp/link.cst
+
+</code></pre>
+<p>基板到着後は、先に電源/I/O/ネットリストをレビューし、二重給電防止と各線の電圧・Hi-Zを測定する。</p>
+<p>確定したプロファイルを別名で追加し、ESP側headerとRTLの実基板top/制約を対応させる。</p>
+<p>その後に書込み再開の指示を受け、低速ID→全パターン→反復回数/CRC/timeoutログを保存する。</p>
+<p>高速PARLIO/DMAへの移行は低速合格後の別段階。</p>
+<h2>2026-10-22の確認結果</h2>
+<ul>
+<li>現行unverifiedプロファイルのCST生成拒否をPC上で確認。CST未生成。</li>
+<li><code>run_rtl.py</code>はシミュレータ未検出で明示的に終了。<strong>RTLテストベンチは未実行</strong>。</li>
+<li>テストベンチにはID、512パターン、CRC/未知opcode拒否、途中DIR、timeout、arm/reset/OEを収録。シミュレーション合格と主張しない。</li>
+<li>Icarus導入操作は自動承認レビューに<code>blocked by policy</code>で拒否されたため、別経路で迂回せず停止。具体的理由は返却されなかった。</li>
+<li>Tab5/USB/COMは一切操作していない。実機の通信・配線・表示・速度は未検証。</li>
+</ul>
+<h3>Tab5側のビルド成功（実機への書込みなし）</h3>
+<p>ESP-IDF 5.5.5、GNU RISC-V 14.2.0、ESP32-P4ターゲットで独立プロジェクトの全1070工程が成功。</p>
+<p>ローカル生成先 <code>D:/tmp/tab5-link-bringup-build/</code>、アプリは <code>tab5_link_bringup.bin</code>、202,352 bytes。</p>
+<p>ビルドログは <code>D:/tmp/tab5-link-bringup-build.log</code>。ESP-IDFの自動表示する書込みコマンドは実行していない。</p>
+<p>既存Python環境 <code>D:/tmp/tab5-idf-env</code> を使用し、PlatformIO配下のIDFに制約ファイルがないため</p>
+<p><code>IDF_PYTHON_CHECK_CONSTRAINTS=no</code>でビルドした。パッケージ依存の自動検査は省略されるが、</p>
+<p>コンパイル/リンクとイメージ生成・サイズ検査は成功。最終binのハッシュは別途manifestに記録。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

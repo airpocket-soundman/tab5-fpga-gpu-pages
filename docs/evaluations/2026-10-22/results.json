@@ -1,0 +1,112 @@
+[
+  {
+    "mode": "CPU",
+    "scene": 0,
+    "load": 0,
+    "run_id": 1,
+    "frames": 120,
+    "render_mean_ms": 15.503908333333335,
+    "render_p95_ms": 18.679,
+    "pipeline_mean_ms": 34.31644999999999,
+    "frame_fps": 29.140543383712487
+  },
+  {
+    "mode": "CPU",
+    "scene": 1,
+    "load": 0,
+    "run_id": 2,
+    "frames": 120,
+    "render_mean_ms": 45.96651666666666,
+    "render_p95_ms": 48.556,
+    "pipeline_mean_ms": 64.7918416666667,
+    "frame_fps": 15.434041914484853
+  },
+  {
+    "mode": "CPU",
+    "scene": 2,
+    "load": 0,
+    "run_id": 3,
+    "frames": 120,
+    "render_mean_ms": 199.75400833333327,
+    "render_p95_ms": 214.385,
+    "pipeline_mean_ms": 218.51758333333336,
+    "frame_fps": 4.576290771413894
+  },
+  {
+    "mode": "CPU",
+    "scene": 3,
+    "load": 0,
+    "run_id": 4,
+    "frames": 120,
+    "render_mean_ms": 207.29885833333338,
+    "render_p95_ms": 212.64,
+    "pipeline_mean_ms": 225.98015833333346,
+    "frame_fps": 4.42516726855702
+  },
+  {
+    "mode": "CPU",
+    "scene": 4,
+    "load": 0,
+    "run_id": 5,
+    "frames": 120,
+    "render_mean_ms": 12.164883333333334,
+    "render_p95_ms": 14.539,
+    "pipeline_mean_ms": 31.62639166666666,
+    "frame_fps": 31.619161949922105
+  },
+  {
+    "mode": "CPU",
+    "scene": 5,
+    "load": 0,
+    "run_id": 6,
+    "frames": 120,
+    "render_mean_ms": 13.568058333333335,
+    "render_p95_ms": 16.753,
+    "pipeline_mean_ms": 32.57025833333334,
+    "frame_fps": 30.702857489360813
+  },
+  {
+    "mode": "CPU",
+    "scene": 6,
+    "load": 0,
+    "run_id": 7,
+    "frames": 120,
+    "render_mean_ms": 390.64281666666676,
+    "render_p95_ms": 394.561,
+    "pipeline_mean_ms": 409.34837500000015,
+    "frame_fps": 2.442906973797074
+  },
+  {
+    "mode": "CPU",
+    "scene": 7,
+    "load": 0,
+    "run_id": 8,
+    "frames": 120,
+    "render_mean_ms": 47.09265,
+    "render_p95_ms": 50.434,
+    "pipeline_mean_ms": 65.67835,
+    "frame_fps": 15.225717454838616
+  },
+  {
+    "mode": "CPU",
+    "scene": 7,
+    "load": 1,
+    "run_id": 9,
+    "frames": 120,
+    "render_mean_ms": 50.40815000000002,
+    "render_p95_ms": 52.441,
+    "pipeline_mean_ms": 68.91176666666667,
+    "frame_fps": 14.511309873059897
+  },
+  {
+    "mode": "CPU",
+    "scene": 7,
+    "load": 2,
+    "run_id": 10,
+    "frames": 120,
+    "render_mean_ms": 72.0088083333333,
+    "render_p95_ms": 74.189,
+    "pipeline_mean_ms": 90.45758333333328,
+    "frame_fps": 11.054905107458291
+  }
+]

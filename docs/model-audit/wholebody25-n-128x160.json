@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "model": "yolov9_n_wholebody25_0100_1x3x128x160.onnx",
+  "sha256": "52f84f848496c28d32eb276e5aa983ff8800f4dfbfe5193469e52b8f3b1f5389",
+  "file_bytes": 2609470,
+  "opsets": {
+    "ai.onnx": 13
+  },
+  "graph_inputs": [
+    {
+      "name": "images",
+      "dtype": "FLOAT",
+      "shape": [
+        1,
+        3,
+        128,
+        160
+      ],
+      "bytes": 245760
+    }
+  ],
+  "graph_outputs": [
+    {
+      "name": "output0",
+      "dtype": "FLOAT",
+      "shape": [
+        1,
+        29,
+        420
+      ],
+      "bytes": 48720
+    }
+  ],
+  "operators": {
+    "Add": 44,
+    "AveragePool": 5,
+    "Concat": 33,
+    "Conv": 186,
+    "Div": 1,
+    "MaxPool": 3,
+    "Mul": 180,
+    "Reshape": 5,
+    "Resize": 2,
+    "Sigmoid": 180,
+    "Slice": 16,
+    "Softmax": 1,
+    "Split": 2,
+    "Sub": 2,
+    "Transpose": 1
+  },
+  "initializer_elements": 604744,
+  "initializer_bytes": 2419064,
+  "largest_inferred_tensor_bytes": 245760,
+  "tensors_with_unknown_size": 0,
+  "conv_macs_for_resolved_nodes": 61063640,
+  "conv_nodes_without_macs": [],
+  "shape_inference_error": null,
+  "proposed_partition": {
+    "mac_engine": [
+      "Conv"
+    ],
+    "vector_or_layout": [
+      "Sigmoid",
+      "Mul",
+      "Slice",
+      "Concat",
+      "AveragePool",
+      "Add",
+      "MaxPool",
+      "Resize",
+      "Reshape",
+      "Split",
+      "Transpose",
+      "Softmax",
+      "Sub",
+      "Div"
+    ],
+    "host_or_lowering": [],
+    "unclassified": []
+  },
+  "limits": "Graph inventory only. Partition is a proposal, not implemented support. Largest tensor is not peak live memory. MACs exclude unresolved convolutions and all other operators. No timing estimate."
+}

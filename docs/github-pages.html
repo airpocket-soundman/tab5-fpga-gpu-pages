@@ -1,0 +1,40 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>開発資料の公開と更新 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>開発資料の公開と更新</h1>
+<h2>公開構成</h2>
+<p>開発リポジトリ <code>airpocket-soundman/tab5-fpga-gpu</code> と、公開専用リポジトリ</p>
+<p><code>airpocket-soundman/tab5-fpga-gpu-pages</code> を分離する。</p>
+<p>開発側で生成・レビューした <strong><code>build/site/</code> のHTML成果物だけ</strong> を公開側へコピーする。</p>
+<p>公開側はmainブランチのルートをGitHub Pagesの配信元とする構成。</p>
+<p>開発側のprivateリポジトリでは、現在のアカウントプランによるPages有効化がHTTP 422で拒否されたため、</p>
+<p>公開専用リポジトリを用いる。元リポジトリのvisibilityは変更しない。</p>
+<p>公開専用リポジトリの作成、Pages有効化、公開URLでの取得確認は、それぞれ別途結果を確認する。</p>
+<p>この手順書やworkflowの追加だけでは公開成功を意味しない。</p>
+<h2>更新手順</h2>
+<ul>
+<li>元リポジトリの仕様・ロードマップ・評価資料を更新する。実装済み、実測、計画、未検証を区別する。</li>
+<li>リポジトリのルートで <code>python tools/build_site.py</code> を実行する。Python標準ライブラリだけで生成する。</li>
+<li><code>build/site/index.html</code> をローカルで開き、文面・リンク・表示・公開対象ファイルを確認する。</li>
+<li>公開専用リポジトリの作業ツリーに <code>build/site/</code> の中身だけを反映する。元リポジトリ全体や<code>.git/</code>はコピーしない。</li>
+<li>公開側へコミット・pushする。mainルートを配信元とするPages更新の完了を待つ。</li>
+<li>GitHubが返すPages URLを開き、更新した内容を確認する。失敗時はデプロイ結果を確認し、公開済みと報告しない。</li>
+</ul>
+<p>削除された古い成果物が公開側に残らないことも確認する。公開側での削除は、公開専用作業ツリーと</p>
+<p>管理対象ファイルを確認してから行う。秘密情報や他用途のファイルが混ざったディレクトリを一括同期しない。</p>
+<h2>CIの役割</h2>
+<p>workflow（開発リポジトリ内） はmainへのpushまたは手動実行で、</p>
+<p><code>python tools/build_site.py</code> を実行し、<code>build/site/</code> のみを</p>
+<p><code>public-documentation-site</code> というActions成果物として7日間保存する。</p>
+<p>生成失敗・成果物なしは失敗として扱う。</p>
+<p>CIは元リポジトリの読み取り権限 <code>contents: read</code> だけを使う。</p>
+<p>公開リポジトリへの自動pushやPagesデプロイは行わず、公開用tokenやsecretを必要としない。</p>
+<p>公開側への反映は上記のレビュー済み成果物を使う手順で行う。</p>
+<h2>公開対象と秘密情報</h2>
+<p><strong>privateリポジトリから生成したGitHub Pagesでも、サイトは公開アクセス可能になりうる。</strong></p>
+<p>今回の公開専用リポジトリは公開を目的とするため、ソース側がprivateであることを</p>
+<p>生成ページの秘密保持と取り違えない。</p>
+<p>GitHub公式のPages公開条件</p>
+<p>を確認する。</p>
+<p>token、認証情報、個人情報、秘密鍵、非公開URL、開発環境のsecret、公開許諾のないモデルやデータを</p>
+<p>HTML・画像・ログ・Actions成果物に含めない。<code>build/</code>全体、ファームbin、モデルファイル、</p>
+<p>端末ログをそのまま公開しない。実測結果は公開範囲を確認し、比較条件と未測定項目を明記する。</p>
+<p>この公開・生成workflowにはTab5、USB、COM、FPGAプログラマへの操作は含めない。</p>
+<p>Tab5実機へのアクセス・書込み停止は継続する。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

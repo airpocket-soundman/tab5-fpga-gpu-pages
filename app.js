@@ -28,7 +28,7 @@ function enableImageZoom() {
   });
 }
 enableImageZoom();
-fetch('content.json').then(r => { if (!r.ok) throw Error(r.status); return r.json(); }).then(data => {
+fetch('content.json', {cache: 'no-cache'}).then(r => { if (!r.ok) throw Error(r.status); return r.json(); }).then(data => {
   const e = escapeHTML;
   document.querySelector('#updated').textContent = `更新 ${data.updated}`;
   document.querySelector('#facts').innerHTML = data.facts.map(f=>`<div class="fact"><span>${e(f.label)}</span><strong>${e(f.value)}</strong><p>${e(f.note)}</p></div>`).join('');

@@ -1,0 +1,14 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Grouped Conv の group=1 分解参照 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>Grouped Conv の group=1 分解参照</h1>
+<p>2026-10-22。PC用の整数参照とテストを追加した。RTLのgroup対応、実モデルのINT8量子化、モデル全体の実行、実機高速化の完了を示すものではない。</p>
+<h2>入出力と分解</h2>
+<p>ONNX Conv の一次定義に従い、入力は NCHW、重みは <code>[M,C/group,kH,kW]</code>。入力Cと出力Mは正整数groupで割り切れる必要がある。ONNXのConvは浮動小数点演算子であり、この参照のINT8/INT32規則そのものをONNX Convの型仕様として扱わない。</p>
+<p><code>reference/grouped_conv_lowering.py</code> の <code>grouped_conv2d</code> は各batchについて入力channel群と対応する重み・biasをスライスし、既存 <code>compute_reference.conv2d</code>（group=1）を呼び出す。結果は同じbatch内で出力channel順に結合する。batchをまたいでgroup順に結合しない。depthwiseはgroup=C、multiplierはM/Cで扱う。</p>
+<p>pad順序はtop,left,bottom,right。stride・dilation・非対称padを変更せず各呼出しに渡す。padding値は入力zero pointなので実値0に対応する。入力と重みは符号付きINT8、重みzero pointは0、biasと出力はINT32。入力zero pointは符号付きINT8で指定する。縮約順序は各group内のchannel→kernel y→kernel x。既存参照を通して各加算後にINT32越境を検出し、後続項で相殺される場合も例外にする。group間で部分和の合算や再量子化は行わない。</p>
+<p>寸法は正の組込みint（padのみ0可）、bool/floatは拒否。rank・群整除・重みI・データ長・INT8範囲・bias長/INT32範囲を検証する。出力が空になる場合も拒否。戻り値は新しいflat配列とNCHW shapeで、引数は変更しない。</p>
+<h2>PC上の検証</h2>
+<pre><code>
+python -m unittest discover -s tests -p test_grouped_conv_lowering.py
+
+</code></pre>
+<p>2026-10-22に6テストが成功。固定seedの小規模100条件を、group=1関数を呼ばない直接grouped Convオラクルと照合した。batch=1/2、group=1/2/4、depthwise multiplier、負の入力/重み、非0入力zero point、bias、pad/stride/dilationを含む。別テストでgroup/batch順序、pad値、途中overflowと後続groupのoverflow、型・範囲・shape拒否、入力配列無変更を確認した。</p>
+<p>WholeBodyのConv 186ノードはgroup1=180/group4=6と解析されているが、この分解は重み/入力を量子化する処理ではない。実グラフへのlowering、tensor生存期間、スライスをDDR viewまたはcopyへ落とす方法、命令数・転送量・性能は未評価。現時点のRTL capabilityにgrouped Conv対応を追加しない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

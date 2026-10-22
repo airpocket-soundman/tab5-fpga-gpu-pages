@@ -1,5 +1,5 @@
 <!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PINTO WholeBody モデルの選定と評価 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>PINTO WholeBody モデルの選定と評価</h1>
-<p>更新日：2026-10-22。Nを初期解析対象とし、Nが事前に定めた検出品質基準を満たさない場合はT/Sを評価するする。</p>
+<p>更新日：2026-10-22。Nを初期解析対象とし、Nが事前に定めた検出品質基準を満たさない場合はT/Sを評価する。</p>
 <p>モデルの規模と処理解像度は別の変数として比較する。最小モデルを最終採用する決定ではない。</p>
 <h2>対象と出力</h2>
 <p>候補はPINTO0309のYOLOv9 Wholebody25。</p>
@@ -25,6 +25,8 @@
 <p>post版にはNonMaxSuppression、Gather/GatherND、Castなども含まれる。</p>
 <p>したがってConvとReLUだけを作って「WholeBody対応」と扱うことはできない。</p>
 <p>配布ファイルはFLOATグラフで、INT8量子化済みモデルを確認したわけではない。</p>
+<p>Conv属性の追加監査では、3つのN版ともgroup=1が180個、group=4が6個。group=4はv0.1のgroup=1演算器の直接対象外です。入力・重み・出力のchannel領域を分割してgroup=1の複数ジョブへ変換する方法をPC参照で検証します。量子化、配置、ジョブ間の転送・結合費用は別途評価が必要です。各Convの形状、kernel、stride、dilation、pad、除外理由を解析JSONへ追加しました。</p>
+<p>属性の意味はONNX Conv仕様に従います。監査上のgeometry candidateは形状契約の候補であり、RTLやINT8モデルの対応済み判定ではありません。</p>
 <p>解析JSON：</p>
 <ul>
 <li><a href="model-audit/wholebody25-n-128x160.json">N raw 128×160</a></li>

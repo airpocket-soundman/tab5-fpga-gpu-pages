@@ -1,0 +1,34 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PC上の開発・検証記録（2026-10-22） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>PC上の開発・検証記録（2026-10-22）</h1>
+<p>この記録はTab5の使用停止後に行ったPC上の開発を対象とする。USB/COMの読取り、GPIO操作、ファーム書込みは行っていない。</p>
+<h2>追加実装</h2>
+<div class="table-scroll"><table><thead><tr><th>対象</th><th>実装・検証した範囲</th><th>未検証・未実装</th></tr></thead><tbody>
+<tr><td>ゲーム整数参照</td><td>CLEAR、Bresenham線、三角形、scissor、top-left、Z、不正入力時の無変更</td><td>FPGA描画RTL、DDR連携</td></tr>
+<tr><td>C++17ラスタライザ</td><td>Python参照と250ランダム命令および境界条件について、各命令後のcolor/depth全画素とcoverageを照合</td><td>既存GPU LABへの統合、Tab5性能</td></tr>
+<tr><td>INT8 MAC lane</td><td>RTLソース、ready/valid・overflow・reset契約、CPU参照から252 cycleの自己検査用TB生成</td><td>RTLシミュレーション、合成、クロック・資源・速度</td></tr>
+<tr><td>Grouped Conv分解</td><td>batch/groupごとにgroup=1へ分割。独立実装とのランダム100条件比較、depthwise multiplier、非0零点、overflow検証</td><td>実モデル量子化、実グラフlowering、DDR配置、実行時間</td></tr>
+<tr><td>ONNX属性監査</td><td>3つのNモデルでConv属性を記録。group=1:180個、group=4:6個</td><td>モデル全体のFPGA実行</td></tr>
+<tr><td>接続試験codec</td><td>Python参照、583共通ベクトル、実機と共通のCコードを793レコードで照合</td><td>RTLタイミング、電気条件、実基板通信</td></tr>
+<tr><td>接続試験ファーム</td><td>共通C codecを使ったESP-IDF 5.5.5の再ビルド成功。202,432 bytes、ハッシュはbringup/build-manifest.json</td><td>書込み、動作確認</td></tr>
+</tbody></table></div>
+<h2>ホストテスト</h2>
+<p>Python 3.12、既存Zig C/C++コンパイラ、ONNX 1.23.2を使用した。</p>
+<pre><code>
+python -m unittest discover -s tests -p &quot;test_*.py&quot;
+
+python -m unittest discover -s tests/rtl_compute -p &quot;test_*.py&quot;
+
+python bringup/tests/run_codec.py --cc path/to/existing/zig --zig
+
+python tools/build_site.py
+
+</code></pre>
+<p>最初のテスト群は46件、MACベクトルのテスト群は3件が成功。C++ differential 3件を46件に含む。C codecの793レコード照合は別実行した。ONNXとC++コンパイラがない環境では一部テストはskipとなるため、件数とskip理由を確認する。</p>
+<p><code>.github/workflows/host-tests.yml</code>にLinux上のホストテスト、C codec照合、MACベクトル生成、ドキュメント生成を追加した。CIはPC参照を確認するもので、RTLを実行しない。実モデルの重みはリポジトリに含めず、CIのONNXテストは小規模な合成モデルを使う。</p>
+<p>RTLシミュレータは未導入。以前の導入が自動承認レビューに拒否されたため、今回も導入操作は行っていない。テストベンチの作成・ホストでのベクトル検査を、RTLシミュレーション合格として扱わない。</p>
+<h2>継続作業</h2>
+<ul>
+<li>整数C++描画をGPU LABの別CPUバックエンドへ組み込む。</li>
+<li>利用可能な環境で描画・MAC・接続RTLを参照と照合し、合成・資源・タイミングを検証する。</li>
+<li>grouped Convの実グラフ分解、量子化、非Conv演算、バッファ生存期間を実行計画へ追加する。</li>
+<li>ピン・電圧・電源・GPIO競合の確定とTab5利用再開後に、低速接続、DDR、高速通信へ進む。</li>
+</ul></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

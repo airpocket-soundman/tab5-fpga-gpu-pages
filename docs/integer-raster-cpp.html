@@ -1,0 +1,11 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Portable C++ 整数ラスタライザ | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>Portable C++ 整数ラスタライザ</h1>
+<p><code>reference/cpp/integer_raster.hpp</code> は C++17 のヘッダのみで利用する CPU 参照実装。将来の公平な CPU/FPGA 比較用であり、今回 <code>main/lab.cpp</code> への統合、Tab5 書込み、実機性能測定は行っていない。</p>
+<p><code>integer_raster::Frame(width,height)</code>、<code>clear(color,depth)</code>、<code>line(a,b,color,scissor)</code>、<code>triangle(a,b,c,color,scissor)</code> を提供する。scissor は省略時全画面。color/depth は row-major の <code>std::vector&lt;uint16_t&gt;</code>。描画は覆った画素の row-major index を返し、triangle の coverage は Z 判定で不採用の画素も含む。coverage の順序は API 契約に含めず、比較時にソートする。</p>
+<p>Python の <code>reference/game_gpu_reference.py</code> と同じ raw signed 12.4 座標、画素中心、top-left rule、strict greater Z、floor 深度補間、端点順序を保持する Bresenham を実装。負座標の整数化は C++ のゼロ方向切捨てを使わず数学的 floor を使う。ラインは色のみ更新し、深度を更新しない。clear は scissor に依存しない。</p>
+<p>API の整数値は範囲検査前に縮小しないよう int64_t を使用する。座標・深度・色・scissor を全て検査した後で書き込み、不正値は <code>std::invalid_argument</code> を送出してバッファを変更しない。寸法は 1..640 × 1..360、座標は -32768..32767 raw、色/深度は 0..65535。C++ の型付きAPIのため Python の bool/float/コンテナ型チェックとは別であり、呼び出し側で暗黙変換された値の元の型を識別しない。</p>
+<p>検査済み座標差は最大65535。edge/area は64bit、covered sample の非負重みと uint16 Z の積和も64bit。ターゲット上の評価点とこの座標範囲でオーバーフローしない。公開 helper の <code>edge</code>/<code>floor16</code> は内部計算用で、単独で任意の int64 値を受ける汎用算術APIではない。</p>
+<pre><code>
+python -m unittest discover -s tests -p test_cpp_raster.py -v
+
+</code></pre>
+<p>既存の <code>D:/tmp/tab5-test-tools/ziglang/zig.exe c++</code> を優先し、未配置なら PATH の既存 <code>c++</code> / <code>g++</code> / <code>clang++</code> を使用。<code>RASTER_CXX</code> で既存compilerの実行ファイルを指定できる。未検出なら理由を表示して skip し、新規インストールはしない。生成物は <code>build/cpp-raster/</code>。テストは command ごとに color/depth 全画素、coverage、不正値拒否を Python と比較する。固定seedの250命令、共有辺、巻き順、等値Z、空scissor、座標端値、退化、不正値での無変更を含む。2026-10-22に既存Windows Zigでコンパイルし、3テストすべて成功した。これで実機性能や RTL の正しさは証明しない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

@@ -35,7 +35,8 @@
 <li>Z: unsigned 16-bit reciprocal-depth encoding、0 を far/背景、65535 を near とする。ホストは同じ投影定義から生成する。比較は厳密 <code>new &gt; old</code>、等値は先に描いた面が残る。clear depth=0。</li>
 <li>深度補間は <code>floor((wa*za+wb*zb+wc*zc)/area)</code>。画素中心で計算。covered sample の重みは非負なので有効範囲から逸脱しない。</li>
 <li>edge/area は signed 34-bit 以上、重み×Z と総和は signed 51-bit 以上、参照/初期 RTL は signed 64-bit を使用する。最悪座標差65535に基づく。深度除算の近似は v0.1 適合では認めず、後続の明示した精度モードとする。</li>
-<li>線は X/Y を数学的 floor で整数化して Bresenham。線の契約は三角形の共有辺規則と別。ラインの深度は更新しない。</li>
+<li>CLEAR は指定RGB565とuint16 depthでtarget全域を初期化し、draw用scissorに依存しない。省略時は両方0。全引数の型・範囲を検証後に実行する。</li>
+<li>線は X/Y を数学的 floor で整数化して、指定端点順の Bresenham（両端含む）を実行する。<code>dx=abs(x1-x0), dy=-abs(y1-y0), err=dx+dy</code> とし、各stepで更新前の <code>e2=2*err</code> に対して <code>e2&gt;=dy</code> ならX更新、<code>e2&lt;=dx</code> ならY更新する。tieでは端点の反転で中間画素が異なる場合がある。scissor/target外では書込みのみ抑止し、端点clampや先行クリップで線の軌跡を変更しない。画面外を含む最大4096画素の走査を許容する参照モデルとする。線の契約は三角形の共有辺規則と別。頂点Zもuint16として検証するが、ラインはZ判定・深度更新を行わない。</li>
 </ul>
 <p>640×360 color/depth 各 460,800 bytes。double color + depth で 1,382,400 bytes。全 framebuffer は DDR、BRAM は command FIFO・小さい line/tile cache 用。最大 stride は capability で通知し、rowbytes&lt;=stride、stride は 2-byte alignment。最後のアクセス <code>offset+(height-1)*stride+width*2</code> が登録領域内にあることをオーバーフローしない拡張整数で検証する。color/depth の重複領域は禁止。描画中の CPU 書込みは禁止、ownership は fence 完了で返す。</p>
 <h2>エラーと未対応機能</h2>
@@ -51,4 +52,4 @@
 <li><strong>同一整数規則での速度比較:</strong> 同じ整数規則を C++ CPU backend に移植し、同じ頂点/描画順/targetで比較。元のfloat baselineも残す。</li>
 <li><strong>表示を含むフレーム時間:</strong> geometry、submit、GPU busy、readback、LCD transfer、end-to-end frame を別々に記録。現行 Backend::render 契約どおり submit/wait/readback をFPGA render時間に含める。24 frame warmup/120 frame sample と frame seed を記録し、平均/p95/表示FPSを報告する。</li>
 </ul>
-<p>PC の <code>reference/game_gpu_reference.py</code> は G0 三角形の golden。<code>python -m unittest discover -s tests -p test_game_gpu_reference.py</code> で共有対角線・巻き順・厳密深度・scissor・座標最大値・不正入力無変更・退化三角形を確認できる。これだけでゲーム/RTL/転送/実機の動作確認にはならない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>
+<p>PC の <code>reference/game_gpu_reference.py</code> は G0 CLEAR・線・三角形の golden。<code>python -m unittest discover -s tests -p test_game_gpu_reference.py</code> で13テストが成功（2026-10-22）。全域clear・8方向線・水平/垂直・両端/tie・負座標floor・最大座標の画面外経路・scissor・線のZ無変更・共有対角線・巻き順・厳密深度・不正入力無変更・退化三角形を確認した。これだけでゲーム/RTL/転送/実機の動作確認にはならない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

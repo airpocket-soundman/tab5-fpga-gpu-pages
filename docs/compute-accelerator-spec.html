@@ -2,7 +2,7 @@
 <p>2026-10-22。推論専用の別 FPGA bitstream として設計する。ゲーム GPU とは通信・DDR バッファ管理・ジョブ完了・性能計測を共通化する。現時点は演算規則と CPU 参照コードの提案であり、RTL 実装、資源使用量、速度、モデル精度を検証したものではない。学習・逆伝播は初期対象外。</p>
 <h2>評価対象とモデル選定</h2>
 <p>PINTO WholeBody25 の YOLOv9 N を最初の候補とする。モデル系列 N/T/S、入力解像度、FP32/INT8 は別軸として比較する。N の検出精度が用途に足りなければ上位サイズを検討する。採用判断にはモデルサイズ、検出品質、実行時間、メモリ使用量を用いる。</p>
-<p><a href="model-audit/wholebody25-n-128x160.json">実 ONNX の監査</a>では N 128×160 は FLOAT NCHW 入力 <code>1×3×128×160</code>、FLOAT 出力 <code>1×29×420</code>、重み初期値 2,419,064 bytes、Conv 186 個・61,063,640 MAC。25 class の部位・属性を含む box 検出であり、人体キーポイント出力ではない。配布モデルは FP32 で、INT8 化も精度評価も未実施。最大単一 tensor とピーク生存メモリを混同しない。</p>
+<p><a href="model-audit/wholebody25-n-128x160.json">実 ONNX の監査</a>では N 128×160 は FLOAT NCHW 入力 <code>1×3×128×160</code>、FLOAT 出力 <code>1×29×420</code>、初期化テンソル合計（定数を含む）2,419,064 bytes、Conv 186 個・61,063,640 MAC。25 class の部位・属性を含む box 検出であり、人体キーポイント出力ではない。配布モデルは FP32 で、INT8 化も精度評価も未実施。最大単一 tensor とピーク生存メモリを混同しない。</p>
 <p>出典: PINTO model zoo 459_YOLOv9-Wholebody25。監査 JSON の hash と入力サイズで結果を同定する。</p>
 <h2>実行構造</h2>
 <p>ホストで ONNX を検査し、静的形状と演算属性を確定した実行計画を作る。モデル・定数・feature map は DDR に常駐させ、各 Conv のたびに Tab5 と往復しない。推論時は入力 upload、ジョブ投入、完了待ち、最終出力 download を基本とする。重み転送時間を含む cold start と常駐後の steady state を分ける。</p>
@@ -29,7 +29,7 @@
 <tr><td>LAYOUT</td><td>reshape は view、transpose/concat/slice/split は検証済み DDR copy。offset/stride を明示。後続対象</td></tr>
 <tr><td>POOL / RESIZE / SOFTMAX</td><td>対象 graph が必要とするため、実装するか CPU partition を明示する。最初から対応済み扱いにしない</td></tr>
 </tbody></table></div>
-<p>CPU は画像 resize/letterbox、色変換・正規化、box decode、NMS を担当する。どの処理が配布 ONNX 内に含まれるかモデルごとに確認し、raw 出力モデルを優先する。grouped/depthwise Conv、FP32 MAC、任意プログラム実行は v0.1 対象外。</p>
+<p>CPU は画像 resize/letterbox、色変換・正規化、box decode、NMS を担当する。どの処理が配布 ONNX 内に含まれるかモデルごとに確認し、raw 出力モデルを優先する。grouped/depthwise Convの直接命令、FP32 MAC、任意プログラム実行は v0.1 対象外。追加監査でN版のConv 186個中6個がgroup=4と判明したため、group=1ジョブへの分解をホスト側で検証する。分解参照が通ってもRTL対応やWholeBody全体の実行完了とは扱わない。</p>
 <p>ロード時 capability に対して <strong>全ノードと属性</strong> を検査する。未対応ノードは <code>UNSUPPORTED_OP</code> と node 名・属性を返す。自動的に消す、未計算の値を返す、暗黙 CPU fallback は禁止。CPU fallback を許可する場合は実行計画に境界 tensor と FP32/INT8 の変換を明示し、境界ごとの転送量・実測時間を報告する。Conv のみの対応では本モデル全体を実行できない。</p>
 <h2>ベンチマークと合格条件</h2>
 <ul>
@@ -39,4 +39,8 @@
 <li>初期化、前処理、upload、各演算・fallback、download、decode/NMS、表示、全体 wall time を分ける。median/p95、warmup/反復回数、model hash、入力サイズ、bitstream/build ID、ピーク DDR 使用量を保存する。</li>
 <li>単一 Conv の MAC/s は補助指標。入力画像から最終 box までの完了 FPS と latency が改善し、品質基準を満たして初めて YOLO 高速化達成とする。pipeline FPS と単画像 latency は別記する。</li>
 </ul>
-<p>Tab5 は別プロジェクト利用中のため、書き込み・USB/COM 読取りを停止する。再開許可まで PC 参照検証、RTL simulation、graph lowering、合成評価に限定する。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>
+<p>Tab5 は別プロジェクト利用中のため、書き込み・USB/COM 読取りを停止する。再開許可まで PC 参照検証、RTL simulation、graph lowering、合成評価に限定する。</p>
+<h2>最初の RTL 演算部品</h2>
+<p><code>rtl/compute/int8_mac_lane.v</code>（開発リポジトリ内） に単一 MAC lane の試作 RTL を追加した。演算器全体やモデル実行機能ではなく、INT9 の零点減算、INT8 重み積、INT32 bias/累積、各加算の overflow 検出だけを担う。DDR、tile 制御、requant、複数 lane はまだ接続していない。</p>
+<p>begin/MAC/end はそれぞれ valid/ready の立上りクロックで受理する。begin は bias をロードし、end は結果を result_valid で公開する。結果が result_ready で消費されるまで保持し、次ジョブを受けない。同時 MAC/end は MAC 優先。空ジョブは bias を返す。overflow は直前の正常な累積値を保持して error をラッチし、結果を公開せず、reset まで全要求を拒否する。同期 active-high reset は途中ジョブ/未消費結果を破棄して error を解除する。完全な契約は RTL README（開発リポジトリ内）。</p>
+<p><code>tests/rtl_compute/generate_vectors.py</code> は CPU golden の単要素 GEMM を使い、決定的な252 cycleの入力・期待状態と自己検査 Verilog TB を生成する。符号端値、入出力 stall、空ジョブ、両方向 overflow、reset、回復を含む。ホスト側3テストは成功したが、これは RTL を実行した証明ではない。シミュレータ未導入のため RTL simulation・合成・タイミング・実機照合は未実施。導入が以前自動承認で拒否されたため、新規インストールは行わない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

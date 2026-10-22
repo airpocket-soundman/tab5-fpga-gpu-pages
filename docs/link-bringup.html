@@ -93,8 +93,45 @@ python bringup/generate_cst.py bringup/profiles/carrier-unverified.json D:/tmp/l
 </ul>
 <h3>Tab5側のビルド成功（実機への書込みなし）</h3>
 <p>ESP-IDF 5.5.5、GNU RISC-V 14.2.0、ESP32-P4ターゲットで独立プロジェクトの全1070工程が成功。</p>
-<p>ローカル生成先 <code>D:/tmp/tab5-link-bringup-build/</code>、アプリは <code>tab5_link_bringup.bin</code>、202,352 bytes。</p>
+<p>その後、共通codec抽出を既存ビルド先のincremental 12工程で再ビルドし成功。</p>
+<p>ローカル生成先 <code>D:/tmp/tab5-link-bringup-build/</code>、アプリは <code>tab5_link_bringup.bin</code>、202,432 bytes。</p>
 <p>ビルドログは <code>D:/tmp/tab5-link-bringup-build.log</code>。ESP-IDFの自動表示する書込みコマンドは実行していない。</p>
 <p>既存Python環境 <code>D:/tmp/tab5-idf-env</code> を使用し、PlatformIO配下のIDFに制約ファイルがないため</p>
 <p><code>IDF_PYTHON_CHECK_CONSTRAINTS=no</code>でビルドした。パッケージ依存の自動検査は省略されるが、</p>
-<p>コンパイル/リンクとイメージ生成・サイズ検査は成功。最終binのハッシュは別途manifestに記録。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>
+<p>コンパイル/リンクとイメージ生成・サイズ検査は成功。最終binのハッシュは別途manifestに記録。</p>
+<h2>PC参照・共通ベクタ検証の追加（同日）</h2>
+<p><code>reference/link_protocol.py</code>は接続試験v0専用の純粋Python参照。</p>
+<p>frame/CRC/ID/echo/反転と、arm/reset/DIR/partial/timeout/応答未消費のライフサイクルを扱う。</p>
+<p><strong>バイト境界の振る舞いモデルであり、クロック同期や電気的競合のシミュレータではない。</strong></p>
+<p><code>python -m unittest discover -s tests -p test_link_protocol.py -v</code> の10テストが合格した。</p>
+<p>CRC既知解 <code>123456789 -&gt; 0x29b1</code> とPython標準<code>binascii.crc_hqx</code>による独立照合、</p>
+<p>全256値・全sequence、全64bitの単一反転、CRCを正しく再計算したmagic/length/opcode/seq/result不正、</p>
+<p>uint8境界、途中DIR、timeout後復帰、未消費応答による要求抑止を確認する。</p>
+<p><code>bringup/tests/link_vectors.json</code> と <code>.mem</code> は583組の要求/期待応答。</p>
+<p>ID、512パターン、未知opcode4種類、全64bit破損、CRCが正しい形式不正2種類を収録。</p>
+<p><code>python bringup/tests/generate_vectors.py</code>で再生成でき、fixtureと参照の一致もテストする。</p>
+<p><code>tb_link_vectors.v</code>はこの同じ<code>.mem</code>を読み、RTLの全応答バイトと照合する準備。</p>
+<p><code>run_rtl.py</code>は従来の状態遷移テストとvectorテストの両方を実行する。</p>
+<p>既存シミュレータを再探索したが見つからず、追加導入は行っていないため、<strong>両RTLテストは未実行のまま</strong>。</p>
+<p>Tab5の純粋なcodecを<code>bringup/tab5/main/link_protocol.h</code>へ抽出し、<code>main.c</code>も同じ関数を使用する。</p>
+<p><code>bringup/tests/test_codec.c</code>と<code>run_codec.py</code>で、デバイス用CコードをそのままPC上の既存コンパイラで検証できる。</p>
+<p>未知opcodeの成功応答も拒否する。RTL側の明白な論理不具合は今回のコード監査では確認できず、</p>
+<p>RTL動作確認済みという主張はしない。FPGAのCDC/OE/timeout実時間は引き続きRTL・実基板検証が必要。</p>
+<pre><code>
+python -m unittest discover -s tests -p test_link_protocol.py -v
+
+python bringup/tests/generate_vectors.py
+
+# 既存Zigを使う場合のPC専用検証。追加インストールも実機操作も行わない。
+
+python bringup/tests/run_codec.py --cc D:/tmp/tab5-test-tools/ziglang/zig.exe --zig
+
+</code></pre>
+<p>共通C codecは既存Zig（<code>D:/tmp/tab5-test-tools/ziglang/zig.exe</code>）でコンパイルし、</p>
+<p><strong>793レコードのPython期待値との照合に合格</strong>。583共通vectorsに、応答の全64bit破損×3opcodeと、</p>
+<p>CRC再計算済みの応答不正6種類×3opcodeを加えた。Windows標準入力のtext modeによる</p>
+<p>0x1a EOF/CRLF変換をテスト中に検出し、PC用harnessだけにbinary mode設定を追加した。</p>
+<p>これは通信codecの不具合ではなく、PCのテスト入出力の修正。</p>
+<p>Tab5向けも同じheaderを使ったincrementalビルドに成功した。</p>
+<p>現在のアプリSHA256は <code>17f3053ada66d30ee73b11e86ba7e2c262cb9daf2964d31490ec477a3dd4f43b</code>。</p>
+<p>実機GPIOの動作、RTLタイミング、FPGA合成はこのPCテストでは検証していない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

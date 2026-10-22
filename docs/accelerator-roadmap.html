@@ -85,6 +85,15 @@ flowchart LR
 <p>N版Wholebody25の実ファイルを解析し、ConvだけでなくSigmoid/Mul、Pool、Resize、Softmax、レイアウト処理が必要と確認した。</p>
 <p>推論モデルの選定と解析結果は<a href="wholebody-model-plan.html">WholeBodyモデル評価</a>を参照する。</p>
 <p>整数三角形ラスタライズとINT8 GEMM/ConvのPC参照実装、境界値テストを追加済み。接続試験用Tab5ファームはビルド成功、FPGA疎通RTLとテストベンチは作成済みです。RTLシミュレーション、合成、実基板top/ピン制約、bitstreamは未完了であり、M2の完了条件はまだ満たしていません。</p>
+<h2>PC開発の追加実装（2026-10-22）</h2>
+<p>実行条件と検証範囲は<a href="host-validation-2026-10-22.html">PC検証記録</a>を参照。</p>
+<ul>
+<li>G0整数参照にCLEARとBresenham線描画を追加。三角形、scissor、深度、入力拒否を含めて検証する。</li>
+<li><a href="integer-raster-cpp.html">C++17整数ラスタライザ</a>を追加。Python参照と固定seedの250命令について、各命令後のcolor/depth全画素とcoverageの一致を検証。既存GPU LABへの統合と実機性能は未検証。</li>
+<li>INT8単一MAC laneのRTLを作成。INT9の零点差、INT32累積、overflow、ready/valid、resultの待機を契約化し、CPU参照から検証用ベクトルを生成する。RTLシミュレーションと合成は未実施。</li>
+<li>実ONNXのConv属性を追加監査。3モデルともgroup=1が180個、group=4が6個で、後者はgroup=1命令の直接対象外。</li>
+<li><a href="grouped-conv-lowering.html">Grouped ConvのPC分解参照</a>で、batch/groupごとのgroup=1演算と出力channel結合を検証。実モデル量子化・DDR配置・RTL対応は未完了。</li>
+</ul>
 <h2>資料と公開範囲</h2>
 <p>リポジトリ資料を詳細仕様の管理元とし、ChatGPTページには方針、マイルストーン、現在地を掲載する。</p>
 <p>ページは個人用として作成し、外部共有設定は変更しない。</p>

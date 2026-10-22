@@ -39,7 +39,7 @@
 </ul>
 <p>640×360 color/depth 各 460,800 bytes。double color + depth で 1,382,400 bytes。全 framebuffer は DDR、BRAM は command FIFO・小さい line/tile cache 用。最大 stride は capability で通知し、rowbytes&lt;=stride、stride は 2-byte alignment。最後のアクセス <code>offset+(height-1)*stride+width*2</code> が登録領域内にあることをオーバーフローしない拡張整数で検証する。color/depth の重複領域は禁止。描画中の CPU 書込みは禁止、ownership は fence 完了で返す。</p>
 <h2>エラーと未対応機能</h2>
-<p>長さ・opcode・buffer generation・alignment・範囲・format・capability を命令実行前に検査する。不正な単独 draw は一画素も書かずその command を拒否する。先に完了した command は rollback しない。error は sequence、code、command index を返し、batch fence は失敗状態で完了する。DDR fault/timeout はフレーム無効、reset/reinit 後まで新規描画を停止する。未対応命令で黙って CPU に切り替えない。CPU fallback は UI と CSV に表示し比較勝率から除外する。</p>
+<p>長さ・opcode・buffer generation・alignment・範囲・format・capability を命令実行前に検査する。不正な単独 draw は一画素も書かずその command を拒否する。先に完了した command は rollback しない。error は sequence、code、command index を返し、batch fence は失敗状態で完了する。DDR fault/timeout はフレーム無効、reset/reinit 後まで新規描画を停止する。未対応命令でCPUへの暗黙フォールバックを行わない。CPU fallback は UI と CSV に表示しCPU/FPGAの性能比較集計から除外する。</p>
 <p>G1 の alpha は 0..255、各 RGB565 component を整数のまま <code>(src*a+dst*(255-a)+127)//255</code>。色キーは blend 前に skip。スプライト拡大は最近傍、回転と負寸法は未対応。G2 のモデル/行列は signed Q16.16 案、MAC は64-bit、丸め・clip intersection・reciprocal は G2 着手前に追加仕様/参照で凍結する。G3 の透視補正を含め未規定部分を capability として公開してはならない。</p>
 <h2>実装資源と性能評価</h2>
 <p>Tang Primer 20K の想定資源規模は約20k LUT、18×18乗算器48、BRAM 828Kbit、DDR3 128MiB。型番/利用可能資源は合成対象デバイスで再確認する。最初は単一 raster engine・単一 fragment lane、DDR burst と小さい cache から始める。クロック、lane 数、fill rate、DDR 実効帯域は未確定。バッファ read-modify-write に必要な帯域と command/readback の実測を優先する。</p>
@@ -48,7 +48,7 @@
 <ul>
 <li><strong>適合性:</strong> 同じ量子化済み画面命令を整数 CPU golden と RTL simulation に渡し、color/depth を完全一致。</li>
 <li><strong>既存実装比較:</strong> 現行 float CPU の性能は legacy baseline と表示。差分画像/差分率を併記し、完全一致を主張しない。</li>
-<li><strong>公正な速度比較:</strong> 同じ整数規則を C++ CPU backend に移植し、同じ頂点/描画順/targetで比較。元のfloat baselineも残す。</li>
-<li><strong>利用者体験:</strong> geometry、submit、GPU busy、readback、LCD transfer、end-to-end frame を別々に記録。現行 Backend::render 契約どおり submit/wait/readback をFPGA render時間に含める。24 frame warmup/120 frame sample と frame seed を記録し、平均/p95/表示FPSを報告する。</li>
+<li><strong>同一整数規則での速度比較:</strong> 同じ整数規則を C++ CPU backend に移植し、同じ頂点/描画順/targetで比較。元のfloat baselineも残す。</li>
+<li><strong>表示を含むフレーム時間:</strong> geometry、submit、GPU busy、readback、LCD transfer、end-to-end frame を別々に記録。現行 Backend::render 契約どおり submit/wait/readback をFPGA render時間に含める。24 frame warmup/120 frame sample と frame seed を記録し、平均/p95/表示FPSを報告する。</li>
 </ul>
 <p>PC の <code>reference/game_gpu_reference.py</code> は G0 三角形の golden。<code>python -m unittest discover -s tests -p test_game_gpu_reference.py</code> で共有対角線・巻き順・厳密深度・scissor・座標最大値・不正入力無変更・退化三角形を確認できる。これだけでゲーム/RTL/転送/実機の動作確認にはならない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

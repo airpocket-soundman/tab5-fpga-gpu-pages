@@ -38,7 +38,7 @@ flowchart LR
 <li>PC上の参照実装と境界値テストを作り、GPU用・推論用の正解を固定する。</li>
 <li>RTLを参照結果に照合し、合成後のLUT・DSP・BRAM・タイミングを記録する。</li>
 <li>到着した基板の配線を照合し、低速疎通からDDR3とDMAへ進む。</li>
-<li>アプリ全体のCPU/FPGA比較へ進む。未対応命令は明示的に拒否し、暗黙にCPUへ逃がさない。</li>
+<li>アプリ全体のCPU/FPGA比較へ進む。未対応命令は明示的に拒否し、CPUへの暗黙フォールバックを行わない。</li>
 </ul>
 <p>命令はアプリ側のジョブ指示と内部ALU演算を分ける。命令番号の割当だけを先に固定しない。</p>
 <p>ゲームの詳細は<a href="game-gpu-spec.html">ゲームGPU仕様</a>、推論は<a href="compute-accelerator-spec.html">計算アクセラレータ仕様</a>で扱う。</p>

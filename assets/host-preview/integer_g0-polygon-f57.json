@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "source": "host_preview",
+  "is_tab5_capture": false,
+  "execution": "CPU geometry + CPU raster",
+  "raster": "integer_g0",
+  "scene": 1,
+  "scene_name": "Solid / Z-buffer",
+  "load": 0,
+  "frame": 57,
+  "width": 640,
+  "height": 360,
+  "pixel_format": "RGB565",
+  "checksum_algorithm": "FNV-1a RGB565 low byte then high byte",
+  "checksum": 3195373003,
+  "work": {
+    "vertices": 128,
+    "lines": 0,
+    "triangles": 192,
+    "iterations": 0
+  },
+  "notice": "Host rendering only; not a Tab5 image or device performance measurement.",
+  "renderer_binary_sha256": "c12ff6d5ccdeaaa7a0d161578a84b2ca946c07511a6b03105af7ca80819d5868",
+  "ppm_sha256": "b17e0334e7aa792d7293607d63acc81715dbbcb46a9870ee3e6ecc6db6043b62",
+  "png_sha256": "2eb90583011e94d00a02013f3104b60b3a3c809dea7b3bb672bc1b2234861119"
+}

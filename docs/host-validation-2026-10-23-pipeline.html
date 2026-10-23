@@ -1,0 +1,41 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>描画・推論部品の接続とホスト検証（2026-10-23） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>描画・推論部品の接続とホスト検証（2026-10-23）</h1>
+<p>Tab5なしで進めた追加実装。USB/COM操作・実機書込みは行っていない。</p>
+<h2>追加内容</h2>
+<div class="table-scroll"><table><thead><tr><th>対象</th><th>作成・検証した範囲</th><th>残っている範囲</th></tr></thead><tbody>
+<tr><td>描画深度RTL</td><td>正確な49 step整数除算による深度補間、strict-greater Z、入力範囲・重み合計検査。1,154ベクトル</td><td>RTL実行、合成、性能</td></tr>
+<tr><td>候補画素wrapper</td><td>coverageとdepthを接続。単一flight、metadata保持、skip、stall、reset、書込み許可条件。436候補</td><td>画素走査、scissor、framebuffer/DDR、命令受付</td></tr>
+<tr><td>推論dot-product</td><td>MACと再量子化を接続。K個stream、K=0、設定保持、不正設定、overflow、backpressure。90ジョブ・1,677 cycleの参照</td><td>タイル・行列/Convの制御、DDR、量子化モデル実行</td></tr>
+<tr><td>設定・suite共通コード</td><td>main/session.hppをUI/APIの設定変更とsuiteに使用。拒否時無変更、frame reset、対応scene巡回、6/24条件、Polygonのみ対応する構成を直接テスト</td><td>JSON transport、タッチ、USBの実機動作</td></tr>
+<tr><td>PC画像生成</td><td>main/lab.cppをホストで実行しPPM/PNG/JSONを生成。RGB565 checksum、実行バイナリ・画像SHA256を保存</td><td>LVGL UI、Tab5のLCD表示、実機FPS</td></tr>
+</tbody></table></div>
+<p>設定の境界テストでは、負荷の最終値から次シーンへ移る際の検証順序の不具合を検出した。次の負荷を0へ戻してから対応シーンを検索する処理に修正し、全条件の遷移を再検証した。</p>
+<h2>PCでの実行結果</h2>
+<pre><code>
+python -m unittest discover -s tests -p &quot;test_*.py&quot;
+
+python -m unittest discover -s tests/rtl_compute -p &quot;test_*.py&quot;
+
+python -m unittest discover -s tests/rtl_game -p &quot;test_*.py&quot;
+
+python tests/rtl_compute/generate_dot_vectors.py --output build/rtl-dot
+
+python tests/rtl_game/generate_depth_vectors.py --check
+
+python tests/rtl_game/generate_fragment_vectors.py --check
+
+</code></pre>
+<p>56 + 9 + 9 = <strong>74ホストテスト成功、skipなし</strong>。このうちRTL用のテストはPython参照、整数除算の独立実装、既存Frame出力、fixtureを検査しており、Verilogを実行したものではない。</p>
+<p>設定共通コードを含むESP-IDF 5.5.5のアプリ全体ビルドも成功。生成物は894,832 bytes。ハッシュとソース指紋は<a href="firmware-build-2026-10-23-session.json">ビルド記録</a>を参照。既存環境のPython制約検査は制約ファイル不足により無効化した。書込み・起動は実施していない。</p>
+<h2>RTL実行環境の扱い</h2>
+<p><code>tools/run_existing_rtl.py</code>を追加した。既存のiverilog/vvpがある場合にだけ、接続試験、coverage、depth、fragment、MAC、requant、dotのテストベンチを実行する。ツールのインストールは行わない。</p>
+<p>このPCでは既存ツールを検出できず、結果は<code>status=not_run</code>。CIにも同じ確認を追加し、<code>rtl-validation-status</code>成果物に実行・未実行・失敗を区別して保存する。ツール不在でもホストテストを継続するため、CIの成功だけをRTLシミュレーション合格と解釈しない。</p>
+<p>RTLシミュレーション、合成、配置配線、資源量、クロック、実機速度の確認は、このホスト検証には含まれない。</p>
+<h2>関連資料</h2>
+<ul>
+<li><a href="game-depth-rtl.html">深度補間RTL</a></li>
+<li><a href="game-fragment-rtl.html">候補画素wrapper</a></li>
+<li><a href="compute-dot-rtl.html">dot-productジョブ</a></li>
+<li><a href="host-preview.html">PC画像生成</a></li>
+</ul>
+<h2>GitHub CIの確認結果</h2>
+<p>commit <code>f50a634</code> のHost reference checks（run 39961193206）が成功した。保存されたRTL statusは <code>not_run</code>、理由は既存iverilog/vvp未検出。CIでも追加導入は行っていない。したがって今回のRTLは未シミュレーション・未合成のままである。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

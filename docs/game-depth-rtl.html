@@ -1,0 +1,80 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G0 exact depth RTL 部品（2026-10-23） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>G0 exact depth RTL 部品（2026-10-23）</h1>
+<p><code>rtl/game/triangle_depth.v</code> はcoverage後段の、正確な整数深度補間と</p>
+<p>strict-greater深度比較を行うRTLソース。**RTLコンパイル/シミュレーション、合成、</p>
+<p>配置配線、資源量、クロック成立、FPGA/Tab5実機動作は未検証**。</p>
+<p>新しいシミュレータは導入していない。</p>
+<h2>入出力と検証契約</h2>
+<ul>
+<li>area、weight_a/b/c: signed64bit。coverage部品が出す<strong>元の入力頂点順</strong>。</li>
+<li>za/zb/zc/old_depth: unsigned16bit。larger=near、0=far。</li>
+<li>covered: この候補画素が幾何的にcoveredかを表す。</li>
+<li>正常形状: <code>0 &lt; area &lt;= 2*65535^2</code>、全weight&gt;=0、weight合計=area。</li>
+<li>不正area、負のweight、weight合計の不一致、幾何上限超過は、</li>
+</ul>
+<p>  <code>invalid_input=1, depth_pass=0, new_depth=0</code>で結果を返す。除算しない。</p>
+<ul>
+<li>形状検査はcovered=0でも実施する。正常形状でcovered=0は</li>
+</ul>
+<p>  <code>invalid_input=0, depth_pass=0, new_depth=0</code>を返し除算しない。</p>
+<ul>
+<li>covered=1の正常形状は</li>
+</ul>
+<p>  <code>new_depth=floor((wa*za+wb*zb+wc*zc)/area)</code>、<code>depth_pass=(new_depth&gt;old_depth)</code>。</p>
+<p>  深度等値はfalse。結果が0でold_depth=0でもfalse。</p>
+<p>画素coverage外の重みは負になりうるので、coverage出力から接続する実ラスタライザは</p>
+<p>covered=0の候補をこの部品へ送らずスキップするのが基本。</p>
+<p>この部品は不正データを描画可能な値にclamp/wrapしない。</p>
+<p>framebuffer読出し・更新、color、DDR、エラー通知先、scissor/走査は別部品。</p>
+<h2>valid/ready・遅延・リセット</h2>
+<p>入力は立上りの<code>in_valid &amp;&amp; in_ready</code>で一度だけ受理する。入力readyが0の間の</p>
+<p>入力変更やin_validは無視する。accepted transactionは最大1個。</p>
+<p>正常covered入力を受理した立上りの<strong>49クロック後</strong>にout_validと結果を登録する。</p>
+<p>不正入力または正常uncovered入力は、受理した立上り後に結果を登録する。</p>
+<p>除算busy中と未消費のout_valid中はin_ready=0。</p>
+<p><code>out_valid &amp;&amp; out_ready</code>の立上りで結果を消費する。</p>
+<p>out_ready=0の間、out_valid・invalid_input・depth_pass・new_depthは保持する。</p>
+<p>結果消費と次入力の同一クロック受理はしない。消費後にin_readyが1へ戻る。</p>
+<p>reset_n=0は非同期にbusy/valid/出力/内部状態を0にし、in_readyも0にする。</p>
+<p>処理途中や出力待機中のリセットはtransactionを破棄する。</p>
+<p>リセット解除後に古い結果を再通知しない。</p>
+<h2>幅と正確な除算</h2>
+<p>幾何上限を保守的に<code>MAX_AREA=2*65535^2=8589672450 &lt; 2^33</code>とする。</p>
+<p>入力weightは64bitで受け、符号と<strong>66bit合計</strong>で検査した後、乗算用に33bitを用いる。</p>
+<p>33bit weight × 16bit Zは49bit。3項は51bitで足し、正常入力では</p>
+<p><code>sum(weight*Z) &lt;= area*65535 &lt; 2^49</code>なので49bitへの取込みで損失しない。</p>
+<p>49bit numeratorを上位bitから1bitずつ処理するrestoring division。</p>
+<p>各stepでremainderを左シフトして次bitを加え、divisor以上なら引き、quotientに1を追加する。</p>
+<p>divisorは33bit、シフト直後remainderは34bitで比較/減算、終了時remainder&lt;divisor。</p>
+<p>正しい入力では商は0..65535。49step終了時の商をuint16として返す。</p>
+<p>浮動小数点、reciprocal近似、丸めの置換を使わない。</p>
+<h2>coverageとの接続範囲</h2>
+<p>今回、既存<code>triangle_coverage.v</code>は変更していない。coverageはバックプレッシャーなしの登録部品、</p>
+<p>depthは単一transactionの逐次部品なので、両者を無条件に直結してはいけない。</p>
+<p>呼出し元に「coverageのvalid結果とそのZ/old_depthを保持するレジスタ」、</p>
+<p>「covered=0はスキップ」、「depth.in_readyまで保持」、</p>
+<p>「out_readyでdepth結果を受取ってから次候補へ進む」制御が必要。</p>
+<p>ストール制御とmetadata保持は<a href="game-fragment-rtl.html">候補画素wrapper</a>へ実装した。framebuffer更新とDDR接続は未実装。</p>
+<h2>PC確認とRTLテスト準備</h2>
+<p><code>tests/rtl_game/generate_depth_vectors.py</code>が<strong>1,154組</strong>を生成する。</p>
+<p>area=1/2/3、2^32境界、最大area、depth=0/65535、非整数補間、等値/前後深度、</p>
+<p>covered=0、不正符号/合計/上限、固定seed乱数を含む。</p>
+<p><code>depth_inputs.mem</code>/<code>depth_expected.mem</code>/<code>depth_manifest.json</code>を収録。</p>
+<p>depthの4件とcoverageの3件、計7件のPC unittestが合格。</p>
+<p>Pythonの正確な<code>//</code>と49stepの固定幅相当アルゴリズムを比較し、商・剰余・幅・strict-greaterを確認。</p>
+<p>coverageからの重みと既存<code>Frame.triangle</code>の画素深度も両巻き順で直接照合。</p>
+<p>fixtureの一致も確認した。</p>
+<p><code>tb_triangle_depth.v</code>は全vector、49step遅延、busy中の入力無視、</p>
+<p>出力stall、結果消費、処理中resetと古い結果の消去を検査する準備。</p>
+<p>既存Icarus/vvpがないため<strong>このRTLテストベンチは未実行</strong>。</p>
+<p>Pythonでのアルゴリズム確認はVerilog動作や実機の証明ではない。</p>
+<pre><code>
+python tests/rtl_game/generate_depth_vectors.py --check
+
+python -m unittest discover -s tests/rtl_game -v
+
+# 既存Icarusのみ利用。未検出なら明示エラーで終了。
+
+python tests/rtl_game/run_depth.py
+
+</code></pre>
+<p>USB/COM/Tab5の読出し・操作・書込み、FPGA書込みは行っていない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

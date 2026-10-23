@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-23",
+  "target": "esp32p4",
+  "idf": "5.5.5",
+  "source_base_commit": "8d846c238a17a0f418849abecc58abb29f92e64e",
+  "source_state": "working tree before session integration commit; exact hashes below",
+  "source_files_sha256": {
+    "main/app_main.cpp": "ff3f702cef799a1510c42c49242567edf71dd710db9130c2fa373ece06c6c9d4",
+    "main/session.hpp": "58e157d97c4916c3bb60ec4b325b10c7b3518d1cb17cf4d3d4ce311854eaf73c",
+    "main/lab.cpp": "e6451685fb21acce881537bc4160e67fbe4b7d63b0fa1f5ea2774322617e7ea7",
+    "main/lab.hpp": "e202d6945344264a6cf54dcb34404458b416efbb295eeaea6b76fb03697bf785",
+    "reference/cpp/integer_raster.hpp": "98fb0d8bd773bc6efadf11f309b8651b56bf86c9c72ee5e90587c1b88eb43e25",
+    "dependencies.lock": "2dfdb05cb0789195657262b62adaac11c4b48589c4f1e74fc4776e5d9e8b066f",
+    "sdkconfig.defaults": "72945f66e8444c58bd6be1303f4fa8ca023ea1979ad343f54a403aae5d866583",
+    "sdkconfig": "680f1e7b2e0ba5f3933938e97133ef95e92dcd3b42d8cc986ede09448002c3ce"
+  },
+  "app_bytes": 894832,
+  "app_sha256": "56f3c2f2a3d0a84a2395fb9b058f4425d20c4dc9efd692a2cf9bb2e0d314b2de",
+  "build_result": "pass",
+  "python_constraint_check": "disabled_missing_constraint_file",
+  "device_access": "none",
+  "hardware_validation": "not_run"
+}

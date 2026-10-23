@@ -56,7 +56,7 @@
       "id": "M1",
       "title": "モデル監査とCPU参照演算",
       "status": "in_progress",
-      "detail": "整数CPUのCLEAR・線・三角形をGPU LABへ統合し、対応6条件をホスト検証。UI/APIへraster識別、規則別結果保存を追加。ESP-IDF全体ビルド成功。実機動作・追加版の性能は未検証。"
+      "detail": "整数CPU統合に加え、設定変更とsuite遷移をファームと共通のC++コードでPC検証。ホスト画像生成ツールを追加。74ホストテストとESP-IDFビルドが成功。追加版の実機動作・速度は未検証。"
     },
     {
       "id": "M2",
@@ -80,7 +80,7 @@
       "id": "G1",
       "title": "線と画面座標ポリゴン",
       "status": "in_progress",
-      "detail": "三角形のcoverage/top-left/64bit重みのRTL部品を作成。3,328参照ベクトルとTBを用意。RTL simulation、深度除算・Z比較、フレーム走査、DDR連携は未完了。"
+      "detail": "coverageに正確な整数深度補間・strict-greater Z・単一候補fragment wrapperを接続。深度1,154組、fragment436候補の参照とTBを作成。走査・scissor・DDR・命令受付は未実装。RTL実行結果はCIの個別statusで管理。"
     },
     {
       "id": "G2",
@@ -98,7 +98,7 @@
       "id": "C1",
       "title": "INT8演算器",
       "status": "in_progress",
-      "detail": "単一MACに加えて再量子化RTLを作成。INT64積・ties-away・zero point・clamp・backpressure・不正設定の契約と1,062 cycleのTBを用意。RTL simulation・合成・タイル/DDR制御は未実施。"
+      "detail": "MACと再量子化を1出力dot-product wrapperへ接続。K個stream・設定保持・error・reset・stallを契約化。90ジョブ/1,677 cycleの参照を生成。タイル/Conv/DDR・合成・速度は未検証。"
     },
     {
       "id": "C2",
@@ -122,7 +122,7 @@
       "id": "E1",
       "title": "評価結果の公開",
       "status": "in_progress",
-      "detail": "CPU実測は2026-10-22版の記録。2026-10-23の統合・ホスト61テスト・ファームビルドを別記録で公開。FPGA高速化および整数追加版の実機速度は未測定。"
+      "detail": "2026-10-22のCPU実測と、2026-10-23の機器不要検証を分離。最新74ホストテスト・ファームビルド、PC生成画像とchecksumを公開。整数版のTab5実測とFPGA性能は未測定。"
     }
   ],
   "facts": [

@@ -1,0 +1,25 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>INT8 dot-product ジョブ RTL 試作 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>INT8 dot-product ジョブ RTL 試作</h1>
+<p>2026-10-23。<code>rtl/compute/int8_dot_job.v</code> は既存 <code>int8_mac_lane</code> と <code>int8_requantize</code> をそのまま接続し、1出力の dot-product を実行する wrapper。演算部品間の制御を検証するための試作で、DDR、tile scheduler、Conv、モデル実行、ホスト通信には未接続。</p>
+<h2>ジョブと状態遷移</h2>
+<ul>
+<li>IDLE の begin_valid/ready で bias、入力零点、出力scale符号化(multiplier/shift)、出力零点、clamp上下限、K(length)を一括検証して latch。以降、外部設定信号が変化しても進行中ジョブに影響しない。</li>
+<li>START の1サイクルで MAC lane を bias 初期化。この時点では sample を受理しない。</li>
+<li>STREAM で sample_valid/ready の成立した順に K 個の signed INT8 activation/weight を加算。差は activation-input_zero_point。無効サイクルは加算せず、K は受理した sample だけを数える。</li>
+<li>最後の sample 後に FINISH で MAC を終了し、QUANT で累積結果を requantizer に渡す。K=0 は STREAM を通らず bias を再量子化する。</li>
+<li>OUTPUT で signed INT8 の result_valid/result を保持。result_ready で消費して IDLE に戻る。結果消費と新 begin の同時受理はしない。</li>
+</ul>
+<p>begin直後、sample は最短でも次の START クロック後から受理可能。最後のsample後、FINISH・QUANTの2クロックを経て result_valid が立つ。K=0 の場合は begin→START→FINISH→QUANT の順に進む。begin/sample/result の各 valid ソースは ready までpayloadを保持する。フェーズ外のbegin/sampleは受け付けず、副作用もない。Kより多い sample は次のジョブの一部にはならない。K不足の場合はSTREAMで待機し、自動終了やtimeoutはしない。</p>
+<h2>設定・エラー・reset</h2>
+<p>accumulator biasはsigned INT32、入力零点は-128..127、multiplierは0..2147483647、shiftは0..62、出力零点/clampは-128..127かつlower&lt;=upper。Kはunsigned32bitの0..4294967295。Kにメモリ上の制約はなく、将来のコマンド受付側が実バッファ長と照合する。</p>
+<p>設定ポートは不正値検出のため一部広い型を使うが、ポート幅外の値をpack前に切り捨ててはならない。Kは負値を表現できないため、受付側で負値を拒否する。ReLUはcallerがlower=max(-128,output_zero_point)を設定する。</p>
+<p>error_codeは0=正常、1=INVALID_CONFIG、2=ACC_OVERFLOW。受理したbeginの設定が不正ならMACを開始せずFAULTへ進み、以前のresultを変えない。MAC各加算でoverflowした場合は既存laneのerrorが立ち、外部errorも同サイクルから有効になる。直前の正常な累積値を保ち、成功結果を公開しない。コントローラは次クロックでFAULT状態に収束する。FAULT中はbegin/sample/resultのready/validを停止し、resetまで回復しない。</p>
+<p>同期active-high resetは最優先で、途中ジョブ、未消費出力、error、内部設定を破棄し、両部品も同時resetする。reset後のresultは0。通常の複数ジョブ間にresetは不要で、結果消費後に次ジョブを開始する。busyはIDLE以外で1となり、FAULT中も1。errorが1の時はbusy終了を待たずresetで回復する。使用前に最低1クロックのresetが必須。</p>
+<h2>ホスト検証と未実施範囲</h2>
+<pre><code>
+python tests/rtl_compute/generate_dot_vectors.py --output build/rtl-dot
+
+python -m unittest discover -s tests/rtl_compute -p &quot;test_dot_vectors.py&quot; -v
+
+</code></pre>
+<p>CPU goldenによるジョブ単位の結果とcycle状態oracleを生成し、全入出力を検査する自己検査Verilog TBを出力する。K=0、符号端値、ゼロmultiplier、ReLU、late overflowの両方向、不正設定8種、入力bubble、余分sample、出力backpressure、設定latch、複数ジョブ、START/STREAM/FINISH/QUANT/OUTPUT各段階のreset abortを含む。</p>
+<p>TBを動かす場合はwrapperと既存MAC/requantの3 RTLファイルをまとめてcompileする。<strong>ここで成功したホストテストはVerilogを実行していない</strong>。RTL simulation、合成、タイミング、資源使用量、実機動作は未検証。新規シミュレータ導入、Tab5/USB/COM操作、性能向上の主張は行っていない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

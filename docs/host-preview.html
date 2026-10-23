@@ -1,0 +1,15 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPU LAB のPC画像生成 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>GPU LAB のPC画像生成</h1>
+<p>2026-10-23。機器を使わず<code>main/lab.cpp</code>のCPU描画を実行し、640×360のPPMとJSONを保存するツール。Tab5の画像取得、液晶の実写、LVGL UI、FPGA動作、実機性能の確認ではない。USB/serialライブラリや機器接続を使用しない。</p>
+<pre><code>
+python tools/render_host.py --raster integer_g0 --scene polygon --load 0 --frame 57 --output build/host-preview/integer-polygon-f57 --png
+
+</code></pre>
+<p><code>--raster</code>は<code>legacy_float</code>または<code>integer_g0</code>。<code>--scene</code>はwire/polygon/mandelbrot/julia/particles/galaxy/fire/flow。整数版はwire/polygonのみ。loadは0..2、frameは0..10000の整数。状態を再生するFlowの無制限実行を避けるため、ツールのフレーム範囲を制限している。出力prefixへ<code>.ppm</code>と<code>.json</code>を追加する。<code>--png</code>は既存Pillowがある場合だけ追加PNGを生成し、パッケージをインストールしない。</p>
+<p>ビルドは既存<code>D:/tmp/tab5-test-tools/ziglang/zig.exe c++</code>を優先し、<code>RASTER_CXX</code>指定、または既存PATHのc++/g++/clang++も利用できる。compiler不在はエラーとし、自動インストールしない。実行ファイルは<code>build/host-preview-tools/render_host.exe</code>。C++17で<code>main/lab.cpp</code>へリンクし、各CLI実行で再ビルドする。</p>
+<p>JSONはraster、scene/load/frame、寸法、RGB565のFNV-1a（下位byte→上位byte）checksum、Work演算数、<code>CPU geometry + CPU raster</code>、<code>host_preview</code>、<code>is_tab5_capture=false</code>を記録する。PPMはRGB565をbit replicationでRGB888へ展開する。Python wrapperは実行したバイナリとPPM、追加PNGのSHA256も保存する。FPSや所要時間は測定・出力しない。ホストのfloat演算環境で画像が変わる可能性があり、Tab5と画像一致すると主張しない。</p>
+<pre><code>
+python -m unittest discover -s tests -p test_render_host.py
+
+</code></pre>
+<p>テストは両ラスタのWire/Polygonの再現性、画像サイズ、PPMから逆算したchecksum、メタデータ、引数の型/範囲/対応制約、不正入力時の出力非生成、書出し失敗を検証する。書出し途中のI/O失敗では画像だけ残る場合があるため、呼出し成功とJSONの存在を確認して利用する。</p>
+<p>2026-10-23に既存Zigで3テストが成功。<code>build/host-preview/</code>へ両raster×Wire/Polygon×frame0/57の8条件をPPM/PNG/JSONで生成し、整数Polygon/frame57のPNGを目視確認した。いずれもLIGHT条件のPC生成画像であり、実機画像ではない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

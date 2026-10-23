@@ -47,4 +47,6 @@
 <h3>2026-10-23: 単要素 requantization RTL</h3>
 <p><code>rtl/compute/int8_requantize.v</code>（開発リポジトリ内） に INT32 累積値から INT8 への再量子化部品を追加した。非負 INT31 multiplier との INT64 積、shift 0..62、最近接・半分はゼロから遠ざける丸め、出力零点加算、明示した上下限での clamp を行う。ReLU は caller が lower=max(-128,zero_point) を指定する。MAC lane・DDR・モデル実行には未接続。</p>
 <p>入力 valid/ready で単要素ジョブを受理し、結果を output valid/ready まで保持する。出力待ち中および消費サイクルの入力は受け付けない。範囲外パラメータは result を変えず error をラッチし、reset まで停止する。同期 reset は未消費結果を破棄して error を解除する。詳細は requantization契約（開発リポジトリ内）。</p>
-<p><code>tests/rtl_compute/generate_requant_vectors.py</code> は CPU golden から境界値、全63 shift、符号端値、厳密half、ReLU clamp、決定的乱数、不正設定、backpressure/reset の1062 cycleと自己検査Verilog TBを生成する。独立した整数商・剰余による期待値照合を含むホスト3テストを追加した。既存MACの3テストと合わせ6テスト成功。<strong>Verilog自体のシミュレーション・合成は未実施</strong>であり、動作・タイミング・資源使用量のRTL検証済みとは報告しない。新規ツール導入・Tab5操作は行っていない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>
+<p><code>tests/rtl_compute/generate_requant_vectors.py</code> は CPU golden から境界値、全63 shift、符号端値、厳密half、ReLU clamp、決定的乱数、不正設定、backpressure/reset の1062 cycleと自己検査Verilog TBを生成する。独立した整数商・剰余による期待値照合を含むホスト3テストを追加した。既存MACの3テストと合わせ6テスト成功。<strong>Verilog自体のシミュレーション・合成は未実施</strong>であり、動作・タイミング・資源使用量のRTL検証済みとは報告しない。新規ツール導入・Tab5操作は行っていない。</p>
+<h2>単一出力ジョブの接続（2026-10-23）</h2>
+<p>MAC laneと再量子化を<a href="compute-dot-rtl.html">dot-product wrapper</a>で接続した。beginで設定を保持し、K個の入力streamを処理してINT8出力を返す。90ジョブ・1,677 cycleのPC参照と自己検査TBを生成。これはRTLシミュレーション、Convエンジン、DDR、モデル全体の対応を確認した結果ではない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

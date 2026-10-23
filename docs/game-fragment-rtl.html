@@ -1,0 +1,18 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>三角形候補画素の coverage/depth 接続RTL | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>三角形候補画素の coverage/depth 接続RTL</h1>
+<p>2026-10-23。<code>rtl/game/triangle_fragment.v</code>は既存の<code>triangle_coverage.v</code>と<code>triangle_depth.v</code>を接続する単一候補画素のwrapper。DDR、scissor、bounding-box走査、フレームバッファ書込み回路は含まない。CPU整数参照との出力比較用fixtureとTBを追加した段階であり、RTLシミュレーション・合成・資源/タイミング検証は未実施。</p>
+<h2>受理と出力</h2>
+<p>入力はraw signed12.4の3頂点XY、uint16の頂点Z/既存depth/color、候補pixel座標（X10bit、Y9bit）。受理は<code>in_valid &amp;&amp; in_ready</code>の立上り。coverage側へ同時に座標を渡し、Z/old depth/color/pixel座標をlatchする。入力元はstall中validとpayloadを維持するのが通常の契約だが、wrapperは受理後に外部payloadが変わっても新しい入力を受け付けず結果に反映しない。</p>
+<p>内部はIDLE→WAIT_COVERAGE→SEND_DEPTH→WAIT_DEPTH→HOLD_RESULT。未被覆/退化ならdepth dividerを起動せず、depth_pass=0/new_depth=0でskip結果を返す。coveredの場合はcoverageのarea/weightsを保持し、depthのreadyを待って投入する。coverage出力は元頂点順のweightsなのでZの順序を交換しない。最終結果にはcovered、degenerate、invalid_input、depth_pass、new_depthと元color/pixelを含む。</p>
+<p>出力は<code>out_valid &amp;&amp; out_ready</code>で消費し、stall中は全payloadを保持する。同時に次の入力を受理する最適化はせず、1候補のみin flight。<code>write_enable</code>は消費時だけのpulse条件で、<code>out_valid &amp;&amp; out_ready &amp;&amp; covered &amp;&amp; !degenerate &amp;&amp; !invalid_input &amp;&amp; depth_pass</code>。深度不採用/skip/errorでは書込みを許可しない。実際の書込みは下流が担当する。</p>
+<p>非同期active-low resetを両下位moduleと共有し、処理中/出力stall中のresetでは候補を破棄する。reset中はin_ready/out_valid/write_enable=0、解除後に古い結果を返さない。ピクセル座標のtarget範囲判定は外部責任で、640×360範囲外でもwrapper自体はcoverage候補として計算する。</p>
+<h2>検証ファイル</h2>
+<pre><code>
+python tests/rtl_game/generate_fragment_vectors.py --check
+
+python -m unittest discover -s tests/rtl_game -p test_fragment_vectors.py
+
+python tests/rtl_game/run_fragment.py
+
+</code></pre>
+<p>436候補のfixtureは共有辺/巻き順/退化/座標端値、異なるZ、等値/近い既存depth、metadataを含む。PCテストは全画像整数参照の対象画素とcoverage/depth/colorを照合する。TBは入力受理後の外部payload変更、出力stall、write_enable gate、coverage/divider途中resetを検証するよう記述している。既存Icarus/vvpがなければrunnerは未実行と明示して終了し、新規シミュレータ導入や機器操作を行わない。fixture/hostテスト成功をRTL実行成功として扱わない。</p>
+<p>2026-10-23にfixtureを生成し、PC unittest 2件が成功。runnerは既存Icarus/vvp未検出で終了したため、TBは未実行、RTLは未シミュレーション・未合成。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

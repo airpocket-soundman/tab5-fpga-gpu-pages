@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-22",
+  "updated": "2026-10-23",
   "overview": "Tab5とTang Primer 20Kを使い、ポリゴンゲームの描画とWholeBody検出の推論を高速化する。ゲームGPUとCNNアクセラレータは別ビットストリームとし、通信・メモリ管理・測定基盤を共通化。同じ条件のCPU/FPGA比較で、正しさとアプリ全体の効果を検証する。",
   "tracks": [
     {
@@ -10,10 +10,11 @@
         "線・単色三角形・Z判定・scissorの数値契約",
         "CLEAR・線・三角形の整数CPU参照による画素単位の適合性検証",
         "スプライト、頂点変換、クリップ、テクスチャへ段階拡張",
-        "描画・転送・表示・ゲーム全体の時間を分離"
+        "描画・転送・表示・ゲーム全体の時間を分離",
+        "GPU LABに整数CPUバックエンドを統合。UI/API/測定結果でラスタ規則を識別"
       ],
       "limitations": [
-        "GPU RTL・合成・DDR接続・実機性能は未検証",
+        "三角形coverage RTLを作成。RTLシミュレーション・合成・DDR接続・追加版の実機動作と性能は未検証",
         "既存float CPU描画と整数GPU参照は規則が異なり、画像の完全一致は未保証",
         "銀河・炎・流れ・YOLOの対応をゲームGPUの機能として主張しない"
       ]
@@ -26,7 +27,8 @@
         "INT8積・INT32累積、channel別scale、丸め・飽和・overflow拒否の仕様",
         "tiled GEMM・Conv2D・再量子化とgrouped Conv分解のCPU参照",
         "重みとfeature mapのDDR常駐、未対応演算とCPU fallback境界を明示",
-        "前後処理と転送を含むFPS・latency・検出品質で評価"
+        "前後処理と転送を含むFPS・latency・検出品質で評価",
+        "再量子化RTLと1,062 cycleのCPU参照ベクトルを作成（RTLシミュレーション未実施）"
       ],
       "limitations": [
         "配布モデルはFP32で、INT8量子化・精度評価は未実施",
@@ -54,7 +56,7 @@
       "id": "M1",
       "title": "モデル監査とCPU参照演算",
       "status": "in_progress",
-      "detail": "実ONNXの演算子・形状・Conv属性を監査。CLEAR・線・三角形、INT8 GEMM/Convとgrouped Conv分解の参照を作成し、境界値・ランダム照合を実施。RTLとの一致と実モデル量子化は未検証。 C++17整数ラスタライザを追加し、Python参照と250命令の全画素・coverageを照合。GPU LABへの統合は未実施。"
+      "detail": "整数CPUのCLEAR・線・三角形をGPU LABへ統合し、対応6条件をホスト検証。UI/APIへraster識別、規則別結果保存を追加。ESP-IDF全体ビルド成功。実機動作・追加版の性能は未検証。"
     },
     {
       "id": "M2",
@@ -77,8 +79,8 @@
     {
       "id": "G1",
       "title": "線と画面座標ポリゴン",
-      "status": "planned",
-      "detail": "ラスタライズのCPU参照あり。次はRTL実装と画素一致検証、DDRへの接続。GPU実装済みではない。"
+      "status": "in_progress",
+      "detail": "三角形のcoverage/top-left/64bit重みのRTL部品を作成。3,328参照ベクトルとTBを用意。RTL simulation、深度除算・Z比較、フレーム走査、DDR連携は未完了。"
     },
     {
       "id": "G2",
@@ -96,7 +98,7 @@
       "id": "C1",
       "title": "INT8演算器",
       "status": "in_progress",
-      "detail": "INT8単一MAC laneのRTLとready/valid・overflow契約を作成。CPU参照から252 cycleの検証ベクトルを生成。RTL simulation、合成、DDR連携、Conv engine、requant RTLは未完了。"
+      "detail": "単一MACに加えて再量子化RTLを作成。INT64積・ties-away・zero point・clamp・backpressure・不正設定の契約と1,062 cycleのTBを用意。RTL simulation・合成・タイル/DDR制御は未実施。"
     },
     {
       "id": "C2",
@@ -120,7 +122,7 @@
       "id": "E1",
       "title": "評価結果の公開",
       "status": "in_progress",
-      "detail": "既存CPU実測JSON/CSVと仕様資料を保存済み。FPGAの描画・推論高速化結果はまだない。"
+      "detail": "CPU実測は2026-10-22版の記録。2026-10-23の統合・ホスト61テスト・ファームビルドを別記録で公開。FPGA高速化および整数追加版の実機速度は未測定。"
     }
   ],
   "facts": [

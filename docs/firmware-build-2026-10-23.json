@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-23",
+  "target": "esp32p4",
+  "idf": "5.5.5",
+  "source_base_commit": "147a2154112f9fe4b213567d736f2bece6e9742b",
+  "source_state": "working tree before integration commit; exact file hashes below",
+  "source_files_sha256": {
+    "main/app_main.cpp": "282486f3aa86dfcf7bbcbf6f019c03ebc19b205558a0ae88106077b99c3e5f42",
+    "main/lab.cpp": "e6451685fb21acce881537bc4160e67fbe4b7d63b0fa1f5ea2774322617e7ea7",
+    "main/lab.hpp": "e202d6945344264a6cf54dcb34404458b416efbb295eeaea6b76fb03697bf785",
+    "main/usb_api.cpp": "1813dba1a808265b9cd135a510b469fc41a6435ea1adbd7a3a9ee6b9f94f0a5a",
+    "reference/cpp/integer_raster.hpp": "98fb0d8bd773bc6efadf11f309b8651b56bf86c9c72ee5e90587c1b88eb43e25",
+    "dependencies.lock": "2dfdb05cb0789195657262b62adaac11c4b48589c4f1e74fc4776e5d9e8b066f",
+    "sdkconfig.defaults": "72945f66e8444c58bd6be1303f4fa8ca023ea1979ad343f54a403aae5d866583",
+    "sdkconfig": "680f1e7b2e0ba5f3933938e97133ef95e92dcd3b42d8cc986ede09448002c3ce"
+  },
+  "app_bytes": 893936,
+  "app_sha256": "a5e605ed5bde49d8eb08b52b4c388df9ee39feeb22e0d1800441698b3b94554d",
+  "build_result": "pass",
+  "python_constraint_check": "disabled_missing_constraint_file",
+  "rom_elf_metadata": "ESP_ROM_ELF_DIR unset; application image generation completed",
+  "device_access": "none",
+  "hardware_validation": "not_run"
+}

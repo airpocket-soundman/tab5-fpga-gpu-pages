@@ -1,0 +1,18 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GPU LAB 整数CPUバックエンド | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>GPU LAB 整数CPUバックエンド</h1>
+<p>2026-10-23。<code>CpuInteger</code>を<code>Backend</code>契約へ追加した。<code>Mode::CPU</code>のまま、利用するラスタ規則を従来floatと区別する。対応はWire/Polygonのみ。他シーンはavailable=false、render=false。既存<code>Cpu</code>の描画処理は維持する。</p>
+<h2>数値と処理分担</h2>
+<p>現在のキューブシーンの頂点回転・投影はCPUのfloat。画面X/Yは<code>floor(projected*16)</code>でraw signed12.4へ量子化し、範囲-32768..32767を検査する。深度は<code>floor(50000/camera_depth)</code>、uint16、値が大きい方を近くとする。clamp/wrapは行わない。三角形は整数edge、画素中心、top-left、整数floor深度補間、strict greater Z。線はfloorで整数画素化した端点順Bresenham、色のみ更新する。</p>
+<p>固定キューブのcamera depthは<code>4-sqrt(3)</code>以上なのでnear planeを横切らない。このバックエンドは一般メッシュ用のnear clipを実装したものではない。将来の任意メッシュはCPU同次clip規則とnear値を別途固定してから投入する。異常な非有限/範囲外の生成頂点はfalseとし、そのフレームは使用しない（途中まで描いたフレームのrollbackはしない）。</p>
+<p><code>integer_raster::FrameView</code>は呼出し側のTarget color/depthを直接更新する。全画面の中間vector生成・コピーを行わず、coverage収集も無効にする。Wireはdepthをclear/更新しない。Polygonはdepth=0で初期化する。所有型<code>Frame</code>は従来のdifferentialテスト用APIを維持し、同じViewへ委譲する。</p>
+<p>ホスト例外有効時は不正ラスタ命令をinvalid_argumentで拒否する。例外無効の組込みビルドは内部契約違反でabortするため、公開render入口と生成頂点の検査後にのみViewへ渡す。これはUSB等の未検証入力をViewへ直接渡すAPIではない。</p>
+<h2>比較条件と検証</h2>
+<p>従来float描画との画像一致は要件ではない。従来は境界全包含、整数版はtop-leftであり、頂点/深度の量子化も異なる。FPGAとの適合・速度比較には同じ整数頂点と規則を使い、CPU geometryの時間も区別して保存する。今回の追加でTab5実測やGPU高速化を確認したわけではない。</p>
+<pre><code>
+python -m unittest discover -s tests -p test_integer_backend.py
+
+python -m unittest discover -s tests -p test_cpp_raster.py
+
+</code></pre>
+<p>既存compilerのみ利用する。バックエンドの対応範囲、6条件、複数frameと再現性、guard領域、深度、拒否、View/所有型の一致をホストで検証する。従来画像のhashも出力できる。USB/COM、書込み、機器操作は実施しない。</p>
+<p>2026-10-23に既存Zig C++で新規バックエンド1テストと既存Python/C++ differential 3テストが成功した。例外無効(<code>-fno-exceptions</code>)のホストコンパイルも成功。ホスト上の従来LIGHT/frame0 checksumはWire=<code>1f647413</code>、Polygon=<code>60bc247e</code>（ホストのfloat演算環境に依存し、Tab5の固定期待値ではない）。ESP-IDF全体ビルドとUI/APIの識別は統合作業で別途確認する。</p>
+<p>統合後にESP-IDF全体ビルドが成功。UI/APIの<code>raster</code>識別、整数6条件suite、規則別結果保存を追加した。機器不要のクライアント検証は実施したが、実機のタッチ・USB・表示は未検証。<a href="host-validation-2026-10-23.html">統合記録</a>を参照。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

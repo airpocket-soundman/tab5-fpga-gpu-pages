@@ -1,5 +1,5 @@
 <!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tab5 FPGA ゲーム GPU と WholeBody 推論アクセラレータの開発計画 | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>Tab5 FPGA ゲーム GPU と WholeBody 推論アクセラレータの開発計画</h1>
-<p>更新日：2026-10-22。用途別の2設計を採用する方針は合意済み。詳細ABI・数値形式はv0.1設計案として検証する。</p>
+<p>更新日：2026-10-23。用途別の2設計を採用する方針は合意済み。詳細ABI・数値形式はv0.1設計案として検証する。</p>
 <h2>目的と構成</h2>
 <p>同じTab5とTang Primer 20Kを使い、ゲーム用GPUとCNN推論用アクセラレータを別ビットストリームで開発する。</p>
 <p>ゲームでは同じポリゴンゲームをCPU/GPUで比較し、推論ではPINTOさんのWholeBodyモデルを同条件で比較する。</p>
@@ -94,6 +94,9 @@ flowchart LR
 <li>実ONNXのConv属性を追加監査。3モデルともgroup=1が180個、group=4が6個で、後者はgroup=1命令の直接対象外。</li>
 <li><a href="grouped-conv-lowering.html">Grouped ConvのPC分解参照</a>で、batch/groupごとのgroup=1演算と出力channel結合を検証。実モデル量子化・DDR配置・RTL対応は未完了。</li>
 </ul>
+<h2>2026-10-23の進捗</h2>
+<p>GPU LABへ整数CPUバックエンドを統合し、UI/USB API/結果にraster識別を追加した。Wire/Polygonの6条件を対象とし、従来float版の24条件と結果を分離する。ESP-IDF全体ビルドが成功したが、Tab5へ書き込んでおらず、追加版の実機動作・速度は未検証。</p>
+<p>三角形画素包含RTLと再量子化RTLを追加。ホストテストは計61件成功。RTLシミュレーション・合成は未実施であり、G1/C1の完了とはしない。<a href="host-validation-2026-10-23.html">PC統合検証記録</a>に範囲を記録した。</p>
 <h2>資料と公開範囲</h2>
 <p>リポジトリ資料を詳細仕様の管理元とし、ChatGPTページには方針、マイルストーン、現在地を掲載する。</p>
 <p>ページは個人用として作成し、外部共有設定は変更しない。</p>

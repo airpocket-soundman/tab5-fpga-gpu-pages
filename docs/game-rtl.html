@@ -1,0 +1,64 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G0 triangle coverage RTL 部品（2026-10-23） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>G0 triangle coverage RTL 部品（2026-10-23）</h1>
+<p>状態: <strong>coverage/edge-weight 部品のRTLソースとPC期待値を作成した段階</strong>。</p>
+<p>シミュレータ未検出のためRTLコンパイル/シミュレーションは未実行。</p>
+<p>合成、資源量、タイミング、FPGA書込み、Tab5との接続は未検証。</p>
+<p>完成GPUや高速化実測として扱わない。</p>
+<h2>部品の範囲</h2>
+<p><code>rtl/game/triangle_coverage.v</code> は <code>reference/game_gpu_reference.py</code> の</p>
+<p>G0三角形規則に合わせ、1候補画素の画素中心におけるcoverageと重みを計算する。</p>
+<ul>
+<li>頂点ax/ay/bx/by/cx/cy: signed 16bit、4fractional bits（raw -32768..32767）。</li>
+<li>pixel_x: unsigned10bit、pixel_y: unsigned9bit。画素中心をraw <code>(x*16+8,y*16+8)</code>で評価する。</li>
+<li>実targetの640×360以内やscissor以内かどうかは呼出し元が判定する。部品は候補画素をclampしない。</li>
+<li>area&lt;0ではb/cを交換して正規化し、Y下向きのtop-left規則で境界を判定する。</li>
+<li>area=0は<code>degenerate=1, covered=0, area=0, weights=0</code>。</li>
+<li>areaは非負。weight_a/b/cは<strong>入力の元の頂点順</strong>に対応する。内部b/c交換を外部で再実行しない。</li>
+<li>非退化の場合、画素が外側でも符号付き重みを返し、<code>weight_a+weight_b+weight_c=area</code>を満たす。</li>
+<li><code>winding_swapped</code>は入力areaが負だったことを示す。</li>
+</ul>
+<p>深度補間/除算、strict-greater深度比較、color、Z、scissor、bounding-box走査、</p>
+<p>framebufferアクセス、DDR、命令受付は含まない。</p>
+<p>後段は<code>covered=1</code>のサンプルだけを使い、元のZ順のまま</p>
+<p><code>floor((wa*za+wb*zb+wc*zc)/area)</code>を<strong>別の正確な整数除算器</strong>で実行する必要がある。</p>
+<p>この除算・比較を省略した部品をG0描画完成とは扱わない。</p>
+<h2>サイクル契約</h2>
+<p><code>clk</code>の立上りで<code>in_valid=1</code>の入力を取り込み、その立上り後に登録出力と<code>out_valid=1</code>が現れる。</p>
+<p>1段の登録出力、バックプレッシャーなし、毎クロックに候補1個を渡せる<strong>論理インターフェース</strong>。</p>
+<p>実際に達成するクロック周波数/毎秒サンプル数を保証するものではない。</p>
+<p><code>in_valid=0</code>を取り込んだクロックは<code>out_valid=0</code>、データ出力は前値を保持する。</p>
+<p><code>reset_n=0</code>は非同期にout_validと全出力を0にする。</p>
+<p>受信側はout_validが立つサンプルだけを採用する。</p>
+<h2>幅と符号の監査</h2>
+<p>頂点を64bitへ符号拡張してから差分・積を計算する。16bitのまま頂点差を引かない。</p>
+<p>pixelはゼロ拡張した64bit符号付き値からシフト/加算する。</p>
+<p>edge関数の各引数、差分、一時変数、戻り値はsigned64bitで統一。</p>
+<p>頂点の最大差65535、画素中心もraw16bit範囲内なので、保守的に</p>
+<p><code>|edge| &lt;= 2*65535*65535 &lt; 2^33</code>。signed64bitでarea/重み/符号反転を扱える。</p>
+<p>Verilogでの64bit積は最終edgeの有効範囲内で切捨てが発生しない入力契約とする。</p>
+<p>この初版は幅の明示を優先しており、合成時のDSP/LUT量や乗算器の縮約結果は未確認。</p>
+<p>深度重み積と総和の幅は、後段実装時に別途保証する。</p>
+<h2>PC上の期待値とRTLテスト準備</h2>
+<p><code>tests/rtl_game/generate_vectors.py</code> が既存参照の <code>edge</code>/<code>inclusive</code> を利用して</p>
+<p><strong>3,328組</strong>の入力/期待値を生成する。頂点境界、最大値、負座標、退化、水平/垂直境界、</p>
+<p>画素中心上の辺、両巻き順、共有対角線と固定seed乱数2,048組を含む。</p>
+<p><code>inputs.mem</code>/<code>expected.mem</code>はVerilogから同じ値を読める形式。manifestに件数とSHA256を記録する。</p>
+<p>PC unittestの3テストが合格:</p>
+<ul>
+<li>全fixture一致、幅、areaと重みの総和、巻き順と元頂点順の対応。</li>
+<li>既存<code>Frame.triangle</code>のcoverage/depth結果との直接照合（深度はPython側の照合のみ）。</li>
+<li>隣接三角形の全画素について共有辺の所有がちょうど1回。</li>
+</ul>
+<p><code>tb_triangle_coverage.v</code>は全vector出力、連続入力、validの空きサイクル、リセットを検査する準備。</p>
+<p>既存Icarus/vvpがないため<strong>このRTLテストベンチは未実行</strong>。追加導入/別経路インストールは行っていない。</p>
+<p>PC参照テストの合格をRTLの正しさの証明として扱わない。</p>
+<pre><code>
+python tests/rtl_game/generate_vectors.py --check
+
+python -m unittest discover -s tests/rtl_game -v
+
+# 既存Icarusがある環境でのみ実行。未検出ならエラー終了し実機は操作しない。
+
+python tests/rtl_game/run.py
+
+</code></pre>
+<p>USB/COM/Tab5の読出し・操作・書込みは行っていない。</p></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>

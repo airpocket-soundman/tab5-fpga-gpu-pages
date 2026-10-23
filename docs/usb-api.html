@@ -5,6 +5,24 @@
 <p>設定変更や測定開始を自動で再送しない。接続ごとに要求IDの開始値を変え、古い応答との混同を避ける。</p>
 <p>API専用ドライバがUSBを所有し、ESP-IDFログとCSVログはUART側へ出す。USBへ起動ログを混ぜない。</p>
 <p>PCから操作し、実測結果・描画画像を取得できる。認証のないローカルUSB API。</p>
+<h2>2026-10-23の追加仕様（実機未検証）</h2>
+<p>現在はユーザー指示によりTab5/USB/COMの操作を停止中。この追加版はPC検証とビルドの対象であり、実機へ書き込んでいない。</p>
+<ul>
+<li><code>set</code>に<code>raster</code>を追加。<code>legacy_float</code>（既定）と<code>integer_g0</code>を指定できる。<code>mode</code>は従来どおりCPU/FPGA。</li>
+<li><code>integer_g0</code>はCPUのWire/Polygonのみ。未対応sceneとrasterの組合せは、他の設定も含めて変更前に<code>unavailable</code>で拒否する。<code>set</code>でsceneとrasterを同時指定できる。</li>
+<li><code>info</code>は<code>cpu_rasters</code>配列、sceneごとの<code>cpu_integer</code>対応フラグを返す。</li>
+<li><code>status</code>、<code>capture</code>、<code>results</code>に<code>raster</code>を追加。resultsはraster/mode/scene/load別に保持し、異なる規則の測定を上書き・混合しない。captureのrasterは取得画像の描画時点の値。</li>
+<li><code>suite</code>は利用可能なsceneだけを測る。legacyは24条件、integerはWire/Polygon×3負荷の6条件。クライアントも開始応答のmode/rasterとinfoの対応フラグから期待件数を計算する。</li>
+<li>CLIと<code>Client.configure</code>は明示的なraster指定前にinfoの対応を照会し、set応答でも選択値を確認する。未知フィールドを無視する旧ファームを整数版として測定しない。生の<code>Client.call</code>を使う場合は呼出し側がcapabilityを確認する。</li>
+<li>JSONのプロトコルは追加フィールドを含むv1を維持。UARTのCSVは<code>raster</code>列を追加したschema 2へ変更する。既存CSVと列位置で混合しない。</li>
+</ul>
+<p>再開後の操作例（今回は未実行）:</p>
+<pre><code>
+python tools/gpu_lab.py --port COM番号 set --mode CPU --raster integer_g0 --scene 0
+
+python tools/gpu_lab.py --port COM番号 suite --wait --output build/integer-results.json
+
+</code></pre>
 <h2>プロトコル</h2>
 <p>UTF-8 JSONを1行で送る。末尾はLF。要求は最大1024バイト。1要求ずつ応答を待って次を送る。</p>
 <p>APIタスクのコマンド実行順に処理する。未知コマンド、無効値、未対応GPUにはエラーを返す。</p>
@@ -19,11 +37,11 @@
 <div class="table-scroll"><table><thead><tr><th>cmd</th><th>引数</th><th>内容</th></tr></thead><tbody>
 <tr><td>info</td><td>なし</td><td>ファーム・IDF版、ビルド時刻、ELF SHA256、チップrev、boot_id、対応シーン、解像度、測定条件、空きメモリ、UIアロケータ</td></tr>
 <tr><td>status</td><td>なし</td><td>現在のscene/load/mode、running/measuring/suite、run_id、フレーム、採用サンプル数、直近時間・演算数、稼働時間</td></tr>
-<tr><td>set</td><td>scene、load、mode、running（任意）</td><td>設定を検証してまとめて変更。測定をキャンセルしアニメーションのフレーム番号を0へ戻す</td></tr>
+<tr><td>set</td><td>scene、load、mode、raster、running（任意）</td><td>設定を検証してまとめて変更。測定をキャンセルしアニメーションのフレーム番号を0へ戻す</td></tr>
 <tr><td>bench</td><td>なし</td><td>現在条件で24ウォームアップ＋120採用フレームを測定。進行中ならbusy</td></tr>
-<tr><td>suite</td><td>なし</td><td>現在バックエンドで8シーン×3負荷を順次測定。進行中ならbusy</td></tr>
+<tr><td>suite</td><td>なし</td><td>現在バックエンドの対応シーン×3負荷を順次測定。進行中ならbusy</td></tr>
 <tr><td>stop</td><td>なし</td><td>測定をキャンセルし、アニメーションを停止</td></tr>
-<tr><td>results</td><td>なし</td><td>全測定済み結果とboot_id。各行にrun_id、scene/load/mode、平均・p95・pipeline・frame_fps</td></tr>
+<tr><td>results</td><td>なし</td><td>全測定済み結果とboot_id。各行にrun_id、scene/load/mode/raster、平均・p95・pipeline・frame_fps</td></tr>
 <tr><td>capture</td><td>scope（viewport/ui、既定viewport）</td><td>完成フレームまたはUI全体をRGB565LE/base64で返す。測定中・完成画像なしはbusy</td></tr>
 </tbody></table></div>
 <p>sceneは0:ワイヤー、1:ポリゴン、2:Mandelbrot、3:Julia、4:粒子、5:銀河、6:炎、7:渦流。</p>

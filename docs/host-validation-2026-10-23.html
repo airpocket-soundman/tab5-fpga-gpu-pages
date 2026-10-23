@@ -1,0 +1,37 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PC開発・統合検証（2026-10-23） | Tab5 FPGA LAB</title><link rel="stylesheet" href="../style.css"><body><header class="doc-header"><a href="../index.html">← Tab5 FPGA LAB</a><span>技術ドキュメント</span></header><main class="document"><h1>PC開発・統合検証（2026-10-23）</h1>
+<p>Tab5の使用停止中に行った実装とPC検証の記録。USB/COMのアクセス、ファーム書込み、実機操作は行っていない。</p>
+<h2>実装した範囲</h2>
+<div class="table-scroll"><table><thead><tr><th>対象</th><th>追加内容</th><th>残っている検証・実装</th></tr></thead><tbody>
+<tr><td>GPU LAB整数CPU</td><td>CpuIntegerをBackendへ統合。Wire/Polygon対応、Targetへ直接描画。幾何変換・投影はCPU float、画面座標以降は整数G0規則</td><td>実機描画・速度、一般メッシュのnear clip</td></tr>
+<tr><td>UI/API/結果</td><td>RASTER切替、raster識別、規則別の結果保存、整数suite 6条件、未対応組合せの一括拒否、CSV schema 2</td><td>タッチ・USBを含む実機動作</td></tr>
+<tr><td>クライアント</td><td>対応sceneからsuite件数を計算。明示raster指定前にcapabilityを照会し、古いファームの未知フィールド無視を検出</td><td>実機USBでの確認</td></tr>
+<tr><td>描画RTL</td><td>三角形の画素包含、top-left、巻き順、64bit edge/area/重み。3,328組の参照ベクトル</td><td>RTLシミュレーション、深度除算・Z比較、走査・DDR・命令受付</td></tr>
+<tr><td>推論RTL</td><td>INT32積和からINT8への再量子化部品。INT64積、shift、ties-away丸め、zero point、clamp、backpressure、不正設定拒否</td><td>RTLシミュレーション、MACとの接続、タイル・DDR制御、合成</td></tr>
+</tbody></table></div>
+<p>既存のfloat CPU描画を維持し、整数版の測定結果と混合しない。FPGAによる描画・推論の高速化結果はまだない。</p>
+<h2>ホスト検証</h2>
+<pre><code>
+python -m unittest discover -s tests -p &quot;test_*.py&quot;
+
+python -m unittest discover -s tests/rtl_compute -p &quot;test_*.py&quot;
+
+python -m unittest discover -s tests/rtl_game -p &quot;test_*.py&quot;
+
+python tests/rtl_compute/generate_requant_vectors.py --output build/rtl-compute
+
+python tests/rtl_game/generate_vectors.py --check
+
+</code></pre>
+<p>52 + 6 + 3 = <strong>61テスト成功、skipなし</strong>。Python/C++整数描画照合、GPU LAB整数バックエンド、USBクライアントの機器不要テスト、既存の演算・通信・ONNX監査を含む。C++は既存Zig、ONNXは既存1.23.2環境を使用した。</p>
+<p>再量子化はCPU参照と独立したdivmodによる丸め式も照合し、1,062 cycleの自己検査用Verilog TBを生成した。画素包含は参照Frameとの一致、共有辺の所有、重みの和と符号・幅、fixture一致を確認した。これらは<strong>期待値をPCで検査した結果</strong>であり、RTLの実行結果ではない。</p>
+<h2>ESP-IDFビルド</h2>
+<p>ESP-IDF 5.5.5 / ESP32-P4向けのGPU LAB全体を再ビルドし、C++コンパイル、リンク、イメージ生成、パーティションサイズ検査が成功した。生成物は893,936 bytes。SHA256とソースファイルのハッシュは<a href="firmware-build-2026-10-23.json">ビルド記録</a>に保存。</p>
+<p>ビルドは既存のIDF/Python/コンパイラを使用。制約ファイルがない環境のためIDFのPython制約検査を無効化した。ROM ELFメタデータ取得ではESP_ROM_ELF_DIR未設定の診断が出たが、アプリのイメージ生成は完了した。LVGLの既存非推奨API警告も残っている。</p>
+<p>実機への書込み、起動、画面、タッチ、USB API、FPSはこの追加版では未検証。従来の2026-10-22実測を整数版の性能として使用しない。</p>
+<h2>関連仕様</h2>
+<ul>
+<li><a href="integer-backend.html">整数CPUバックエンド</a></li>
+<li><a href="usb-api.html">USB APIのraster追加仕様</a></li>
+<li><a href="game-rtl.html">三角形画素包含RTL</a></li>
+<li><a href="compute-accelerator-spec.html">推論アクセラレータ仕様</a></li>
+</ul></main><footer>2026-10-22 · 仕様案・未検証事項は本文参照</footer></body></html>
